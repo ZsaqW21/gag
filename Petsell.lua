@@ -3,7 +3,7 @@
     - Sells selected pets that are under a user-defined weight.
     - Features a toggleable GUI to configure settings.
     - Saves your settings for future use.
-    - Includes a startup delay to prevent conflicts with game scripts.
+    - Re-scans inventory when settings are saved.
 ]]
 
 -- Use a more reliable method to wait for the game to fully load.
@@ -30,10 +30,9 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v8_Resized.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v9_Rescan.json"
     local config = {
         maxWeightToSell = 4,
-        -- UPDATED: New list of pets
         sellablePets = {
             ["Iguanodon"] = true,
             ["Pachycephalosaurus"] = false,
@@ -45,6 +44,7 @@ do
         }
     }
     local OutputBox -- Forward declare for the logger
+    local isScanning = false -- Prevent multiple scans at once
 
     --================================================================================--
     --                         Configuration Save/Load
@@ -74,6 +74,9 @@ do
         end
     end
 
+    -- Forward declare the main selling function
+    local startAutoSellScan
+
     --================================================================================--
     --                         GUI Creation & Management
     --================================================================================--
@@ -82,7 +85,6 @@ do
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
 
-        -- RESIZED: Log Output Window made smaller
         local LogFrame = Instance.new("Frame", ScreenGui)
         LogFrame.Size = UDim2.new(0.5, 0, 0.4, 0); LogFrame.Position = UDim2.new(0.25, 0, 0.3, 0)
         LogFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); LogFrame.BorderColor3 = Color3.fromRGB(120, 120, 120); LogFrame.BorderSizePixel = 2
@@ -108,8 +110,14 @@ do
         CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50); CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 16
         local corner2 = Instance.new("UICorner", CloseButton); corner2.CornerRadius = UDim.new(0, 6)
+        
+        -- NEW: Start Scan Button
+        local StartScanButton = Instance.new("TextButton", LogFrame)
+        StartScanButton.Size = UDim2.new(0, 110, 0, 30); StartScanButton.Position = UDim2.new(0.5, -55, 1, -35)
+        StartScanButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70); StartScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StartScanButton.Font = Enum.Font.SourceSansBold; StartScanButton.Text = "Start New Scan"; StartScanButton.TextSize = 14
+        local corner_scan = Instance.new("UICorner", StartScanButton); corner_scan.CornerRadius = UDim.new(0, 6)
 
-        -- RESIZED: Settings Window made smaller
         local SettingsFrame = Instance.new("Frame", ScreenGui)
         SettingsFrame.Size = UDim2.new(0, 220, 0, 170); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -85)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
@@ -134,14 +142,12 @@ do
         MaxWeightInput.Text = tostring(config.maxWeightToSell)
         MaxWeightInput.LayoutOrder = 2
 
-        -- RESIZED: Button made smaller
         local SelectPetsButton = Instance.new("TextButton", SettingsFrame)
         SelectPetsButton.Size = UDim2.new(0.9, 0, 0, 35); SelectPetsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); SelectPetsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         SelectPetsButton.Font = Enum.Font.SourceSansBold; SelectPetsButton.Text = "Select Pets to Sell"; SelectPetsButton.TextSize = 16
         SelectPetsButton.LayoutOrder = 3
         local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
 
-        -- RESIZED: Pet Toggles Window made smaller
         local PetTogglesFrame = Instance.new("Frame", ScreenGui)
         PetTogglesFrame.Size = UDim2.new(0, 220, 0, 340); PetTogglesFrame.Position = UDim2.new(0.5, -110, 0.5, -170)
         PetTogglesFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); PetTogglesFrame.BorderSizePixel = 2
@@ -183,11 +189,6 @@ do
         PetSaveButton.LayoutOrder = layoutOrder
         local corner6 = Instance.new("UICorner", PetSaveButton); corner6.CornerRadius = UDim.new(0, 6)
 
-        -- GUI Event Connections
-        CloseButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = true; LogFrame.Visible = false end)
-        SelectPetsButton.MouseButton1Click:Connect(function() PetTogglesFrame.Visible = true; SettingsFrame.Visible = false end)
-        
         local function saveAndCloseSettings()
             local newWeight = tonumber(MaxWeightInput.Text)
             if newWeight then config.maxWeightToSell = newWeight end
@@ -195,17 +196,24 @@ do
             SettingsFrame.Visible = false
             PetTogglesFrame.Visible = false
             LogFrame.Visible = true
+            -- RE-RUN SCAN: Call the main function again with new settings
+            startAutoSellScan()
         end
         
         PetSaveButton.MouseButton1Click:Connect(saveAndCloseSettings)
         
-        -- RESIZED: Button made smaller
         local BackButton = Instance.new("TextButton", SettingsFrame)
         BackButton.Size = UDim2.new(0.9, 0, 0, 35); BackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); BackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Back to Log"; BackButton.TextSize = 16
         BackButton.LayoutOrder = 4
         local corner7 = Instance.new("UICorner", BackButton); corner7.CornerRadius = UDim.new(0, 6)
         BackButton.MouseButton1Click:Connect(saveAndCloseSettings)
+
+        -- GUI Event Connections
+        CloseButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = true; LogFrame.Visible = false end)
+        SelectPetsButton.MouseButton1Click:Connect(function() PetTogglesFrame.Visible = true; SettingsFrame.Visible = false end)
+        StartScanButton.MouseButton1Click:Connect(function() startAutoSellScan() end)
 
         ScreenGui.Parent = PlayerGui
     end
@@ -219,7 +227,14 @@ do
     --================================================================================--
     --                         Pet Finding & Selling Logic
     --================================================================================--
-    local function runAutoSeller()
+    startAutoSellScan = function()
+        if isScanning then
+            logToGui("--- A scan is already in progress. ---")
+            return
+        end
+        isScanning = true
+        OutputBox.Text = "" -- Clear the log for the new scan
+
         loadConfig()
         logToGui("🦕 Starting auto-seller with loaded settings...")
         logToGui("   -> Selling pets under " .. config.maxWeightToSell .. " KG")
@@ -267,11 +282,12 @@ do
         else
             logToGui("❌ No pets matching your criteria were found to sell.")
         end
+        isScanning = false
     end
 
     --================================================================================--
     --                         Initialization
     --================================================================================--
     createGUI()
-    runAutoSeller()
+    startAutoSellScan()
 end
