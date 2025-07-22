@@ -80,7 +80,7 @@ do
     ["Ancient Seed Pack"] = {
         Workbench = "DinoEventWorkbench",
         Ingredients = {
-            { AttributeName = "f", AttributeValue = "Ancient Leaf", ItemType = "Holdable" }
+            { AttributeName = "h", AttributeValue = "Dinosaur Egg", ItemType = "PetEgg" }
         }
     }
 }
