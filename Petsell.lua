@@ -6,8 +6,11 @@
     - Includes a startup delay to prevent conflicts with game scripts.
 ]]
 
--- Add a delay to ensure the game is fully loaded and idle before the script runs.
-task.wait(5)
+-- CORRECTED: Use a more reliable method to wait for the game to fully load.
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(1) -- Add a small extra delay for safety
 
 -- Isolate the entire script in a do...end block to prevent global conflicts
 do
@@ -27,7 +30,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v6_Delayed.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v7_LoadedWait.json"
     local config = {
         maxWeightToSell = 4,
         sellablePets = {
