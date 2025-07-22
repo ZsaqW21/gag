@@ -3,8 +3,11 @@
     - Sells selected pets that are under a user-defined weight.
     - Features a toggleable GUI to configure settings.
     - Saves your settings for future use.
-    - Rewritten with a simplified structure for maximum compatibility.
+    - Includes a startup delay to prevent conflicts with game scripts.
 ]]
+
+-- Add a delay to ensure the game is fully loaded and idle before the script runs.
+task.wait(5)
 
 -- Isolate the entire script in a do...end block to prevent global conflicts
 do
@@ -24,7 +27,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v5_Simplified.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v6_Delayed.json"
     local config = {
         maxWeightToSell = 4,
         sellablePets = {
@@ -218,4 +221,19 @@ do
             
             if not petSoldThisPass then
                 break
-            
+            end
+        end
+
+        if totalPetsSold > 0 then
+            logToGui("👍 Sell process completed. Sold " .. totalPetsSold .. " pet(s).")
+        else
+            logToGui("❌ No pets matching your criteria were found to sell.")
+        end
+    end
+
+    --================================================================================--
+    --                         Initialization
+    --================================================================================--
+    createGUI()
+    runAutoSeller()
+end
