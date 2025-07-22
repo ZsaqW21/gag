@@ -31,10 +31,11 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v12_Cleanup.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Optimized.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
+    FarmModule.needsEggCheck = true -- NEW: Flag to control when to scan the farm
     FarmModule.config = {
         maxWeightToSell = 4,
         targetEggCount = 3,
@@ -253,55 +254,64 @@ do
 
     function FarmModule:RunMasterLoop()
         while self.isEnabled do
-            self:UpdateButtonState("Finding Farm")
-            local myFarm = self:FindFarmByLocation()
-            if not myFarm then task.wait(5); continue end
-            local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
-            if not objectsFolder then task.wait(5); continue end
-            
-            self:UpdateButtonState("Checking Eggs")
-            local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
-            local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
-            
-            if #allEggs >= 8 and readyCount == #allEggs then
-                self:UpdateButtonState("Hatching " .. readyCount)
-                for _, eggToHatch in ipairs(allEggs) do
-                    if not self.isEnabled then break end
-                    self:HatchOneEgg(eggToHatch); task.wait(0.2)
-                end
-                task.wait(3); continue
-            end
-            
-            if #allEggs < self.config.targetEggCount then
-                self:UpdateButtonState("Placing Eggs")
-                local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid:UnequipTools(); task.wait(0.2)
-                    local toolInstance = self:FindPlacementTool()
-                    if toolInstance then
-                        humanoid:EquipTool(toolInstance); task.wait(0.5)
-                        self.placedPositions = {}
-                        local eggsToPlace = self.config.targetEggCount - #allEggs
-                        for i = 1, eggsToPlace do
-                            if not self.isEnabled then break end
-                            self:PlaceOneEgg(); task.wait(0.5)
-                        end
-                        task.wait(1)
-                        self:RunAutoSeller()
-                        continue
+            -- CORRECTED: Only perform the expensive egg scan if the flag is set
+            if self.needsEggCheck then
+                self:UpdateButtonState("Finding Farm")
+                local myFarm = self:FindFarmByLocation()
+                if not myFarm then task.wait(5); continue end
+                local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
+                if not objectsFolder then task.wait(5); continue end
+                
+                self:UpdateButtonState("Checking Eggs")
+                local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
+                local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
+                
+                if #allEggs >= 8 and readyCount == #allEggs then
+                    self:UpdateButtonState("Hatching " .. readyCount)
+                    for _, eggToHatch in ipairs(allEggs) do
+                        if not self.isEnabled then break end
+                        self:HatchOneEgg(eggToHatch); task.wait(0.2)
                     end
+                    task.wait(3); continue
+                end
+                
+                if #allEggs < self.config.targetEggCount then
+                    self:UpdateButtonState("Placing Eggs")
+                    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid:UnequipTools(); task.wait(0.2)
+                        local toolInstance = self:FindPlacementTool()
+                        if toolInstance then
+                            humanoid:EquipTool(toolInstance); task.wait(0.5)
+                            self.placedPositions = {}
+                            local eggsToPlace = self.config.targetEggCount - #allEggs
+                            for i = 1, eggsToPlace do
+                                if not self.isEnabled then break end
+                                self:PlaceOneEgg(); task.wait(0.5)
+                            end
+                            task.wait(1)
+                            self:RunAutoSeller()
+                            continue
+                        end
+                    end
+                end
+
+                -- If we get here, it means there are eggs but they are not ready.
+                -- Turn off the check flag to enter the fast crafting loop.
+                if #allEggs > 0 and readyCount < #allEggs then
+                    print("Eggs are not ready. Entering fast crafting loop.")
+                    self.needsEggCheck = false
                 end
             end
             
             self:PerformOneCraftCycle()
-            task.wait(5) 
+            task.wait(3) -- A small delay in the fast crafting loop
         end
         self:SaveConfig()
         self:UpdateButtonState()
     end
 
     function FarmModule:CreateGUI()
-        -- CORRECTED: Cleanup routine at the start of GUI creation
         if self.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
             self.PlayerGui.CombinedFarmCraftGui:Destroy()
         end
@@ -396,10 +406,10 @@ do
             EggListScroll.CanvasSize = UDim2.new(0, 0, 0, eggContentHeight)
         end
         local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
-        EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then self.config.targetEggCount = newCount end; self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true end)
+        EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then self.config.targetEggCount = newCount end; self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; self.needsEggCheck = true end)
 
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
-        SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false end)
+        SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false; self:RunAutoSeller() end)
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
         
