@@ -31,21 +31,28 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v10_Final.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v11_Final.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
     FarmModule.config = {
         maxWeightToSell = 4,
-        targetEggCount = 8, -- NEW: Configurable number of eggs to place
+        targetEggCount = 3, -- CORRECTED: Default target egg count
         sellablePets = {
+            -- Primal Egg
             ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
+            -- Dinosaur Egg
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
+            -- Zen Egg
             ["Shiba Inu"] = false, ["Nihonzaru"] = false, ["Tanuki"] = false, ["Tanchozuru"] = false, ["Kappa"] = false,
+            -- Paradise Egg
             ["Ostrich"] = false, ["Peacock"] = false, ["Capybara"] = false, ["Scarlet Macaw"] = false,
+            -- Bug Egg
             ["Caterpillar"] = false, ["Snail"] = false, ["Giant Ant"] = false, ["Praying Mantis"] = false,
+            -- Mythical Egg
             ["Grey Mouse"] = false, ["Brown Mouse"] = false, ["Squirrel"] = false, ["Red Giant Ant"] = false,
         },
+        -- CORRECTED: Default egg placement priority
         placementPriority = {
             "Primal Egg", "Dinosaur Egg", "Zen Egg", "Paradise Egg", "Bug Egg", "Mythical Egg"
         }
@@ -268,7 +275,6 @@ do
                 task.wait(3); continue
             end
             
-            -- CORRECTED: Use targetEggCount and place the difference
             if #allEggs < self.config.targetEggCount then
                 self:UpdateButtonState("Placing Eggs")
                 local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
@@ -332,6 +338,11 @@ do
         local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
         local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
 
+        local PetCategoryMenu = Instance.new("Frame", screenGui); PetCategoryMenu.Size = UDim2.new(0, 200, 0, 250); PetCategoryMenu.Position = UDim2.new(0.5, -100, 0.5, -125); PetCategoryMenu.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryMenu.BorderColor3 = Color3.fromRGB(150, 150, 150); PetCategoryMenu.BorderSizePixel = 2; PetCategoryMenu.Visible = false
+        local PetCategoryTitle = Instance.new("TextLabel", PetCategoryMenu); PetCategoryTitle.Size = UDim2.new(1, 0, 0, 30); PetCategoryTitle.Text = "Pet Categories"; PetCategoryTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetCategoryTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetCategoryTitle.Font = Enum.Font.SourceSansBold; PetCategoryTitle.TextSize = 16
+        local PetCategoryScroll = Instance.new("ScrollingFrame", PetCategoryMenu); PetCategoryScroll.Size = UDim2.new(1, 0, 1, -75); PetCategoryScroll.Position = UDim2.new(0, 0, 0, 30); PetCategoryScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryScroll.BorderSizePixel = 0; PetCategoryScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); PetCategoryScroll.ScrollBarThickness = 6
+        local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        
         local subMenus = {}
         for categoryName, petList in pairs(self.petCategories) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
@@ -347,14 +358,21 @@ do
             end
             scroll.CanvasSize = UDim2.new(0, 0, 0, contentH)
             local backBtn = Instance.new("TextButton", frame); backBtn.Size = UDim2.new(0.9, 0, 0, 35); backBtn.Position = UDim2.new(0.05, 0, 1, -40); backBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); backBtn.TextColor3 = Color3.fromRGB(255, 255, 255); backBtn.Font = Enum.Font.SourceSansBold; backBtn.Text = "Back"; backBtn.TextSize = 16
-            backBtn.MouseButton1Click:Connect(function() frame.Visible = false; SettingsFrame.Visible = true end)
+            backBtn.MouseButton1Click:Connect(function() frame.Visible = false; PetCategoryMenu.Visible = true end)
             subMenus[categoryName] = frame
         end
         
+        for categoryName, _ in pairs(self.petCategories) do
+            local catButton = Instance.new("TextButton", PetCategoryScroll)
+            catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            catButton.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; subMenus[categoryName].Visible = true end)
+        end
+        local catBackBtn = Instance.new("TextButton", PetCategoryMenu); catBackBtn.Size = UDim2.new(0.9, 0, 0, 35); catBackBtn.Position = UDim2.new(0.05, 0, 1, -40); catBackBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); catBackBtn.TextColor3 = Color3.fromRGB(255, 255, 255); catBackBtn.Font = Enum.Font.SourceSansBold; catBackBtn.Text = "Back"; catBackBtn.TextSize = 16
+        catBackBtn.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; SettingsFrame.Visible = true end)
+
         local EggFrame = Instance.new("Frame", screenGui); EggFrame.Size = UDim2.new(0, 220, 0, 320); EggFrame.Position = UDim2.new(0.5, -110, 0.5, -160); EggFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); EggFrame.BorderSizePixel = 2; EggFrame.Visible = false
         local EggTitle = Instance.new("TextLabel", EggFrame); EggTitle.Size = UDim2.new(1, 0, 0, 30); EggTitle.Text = "Egg Placement Priority"; EggTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); EggTitle.TextColor3 = Color3.fromRGB(255, 255, 255); EggTitle.Font = Enum.Font.SourceSansBold; EggTitle.TextSize = 16
         
-        -- NEW: Add target egg count input to this frame
         local TargetCountLabel = Instance.new("TextLabel", EggFrame); TargetCountLabel.Size = UDim2.new(0.9, 0, 0, 20); TargetCountLabel.Position = UDim2.new(0.05, 0, 0, 35); TargetCountLabel.Text = "Target Egg Count:"; TargetCountLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); TargetCountLabel.TextColor3 = Color3.fromRGB(220, 220, 220); TargetCountLabel.Font = Enum.Font.SourceSans; TargetCountLabel.TextSize = 14; TargetCountLabel.TextXAlignment = Enum.TextXAlignment.Left
         local TargetCountInput = Instance.new("TextBox", EggFrame); TargetCountInput.Size = UDim2.new(0.9, 0, 0, 30); TargetCountInput.Position = UDim2.new(0.05, 0, 0, 55); TargetCountInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); TargetCountInput.TextColor3 = Color3.fromRGB(255, 255, 255); TargetCountInput.Font = Enum.Font.SourceSansBold; TargetCountInput.TextSize = 14; TargetCountInput.Text = tostring(self.config.targetEggCount);
         
@@ -383,8 +401,8 @@ do
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
         
-        mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
-        resetButton.MouseButton1Click:Connect(function() FarmModule:ResetConfig() end)
+        mainButton.MouseButton1Click:Connect(function() self:Toggle() end)
+        resetButton.MouseButton1Click:Connect(function() self:ResetConfig() end)
     end
 
     function FarmModule:Toggle()
