@@ -1,4 +1,13 @@
 -- Wait for the game to fully load
+-- Safe loading check
+if not game or typeof(game.IsLoaded) ~= "function" then
+    warn("Game not ready or IsLoaded() not available; skipping load wait.")
+else
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+end
+task.wait(1) -- Add a small extra delay for safety
 if not game or typeof(game.IsLoaded) ~= "function" or not game:IsLoaded() then
     game.Loaded:Wait()
 end
@@ -179,8 +188,22 @@ do
     end
     
     function FarmModule:HatchOneEgg(eggModel)
-        local prompt = eggModel:FindFirstChild("ProximityPrompt", true)
-        if not prompt then return end
+    local prompt = eggModel:FindFirstChild("ProximityPrompt", true)
+    if not prompt then return end
+    local adornee = prompt.Parent
+    if not adornee or not adornee:IsA("BasePart") then
+        warn("Skipping hatch: ProximityPrompt not attached to BasePart", adornee)
+        return
+    end
+
+    local originalDistance = prompt.MaxActivationDistance
+    local originalLineOfSight = prompt.RequiresLineOfSight
+    prompt.MaxActivationDistance = math.huge
+    prompt.RequiresLineOfSight = false
+    fireproximityprompt(prompt)
+    prompt.MaxActivationDistance = originalDistance
+    prompt.RequiresLineOfSight = originalLineOfSight
+end
         local originalDistance = prompt.MaxActivationDistance
         local originalLineOfSight = prompt.RequiresLineOfSight
         prompt.MaxActivationDistance = math.huge
