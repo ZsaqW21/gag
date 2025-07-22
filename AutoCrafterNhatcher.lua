@@ -1,5 +1,5 @@
 -- Wait for the game to fully load
-if not game or typeof(game.IsLoaded) ~= "function" or not game:IsLoaded() then
+if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 task.wait(1) -- Add a small extra delay for safety
