@@ -27,7 +27,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    PetSellerModule.CONFIG_FILE_NAME = "AutoPetSellerConfig_v3_Fixed.json"
+    PetSellerModule.CONFIG_FILE_NAME = "AutoPetSellerConfig_v4_Final.json"
     PetSellerModule.config = {
         maxWeightToSell = 4,
         sellablePets = {
@@ -124,7 +124,7 @@ do
         local MaxWeightInput = Instance.new("TextBox", SettingsFrame)
         MaxWeightInput.Size = UDim2.new(0.9, 0, 0, 30); MaxWeightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); MaxWeightInput.TextColor3 = Color3.fromRGB(255, 255, 255)
         MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 16
-        MaxWeightInput.Text = tostring(PetSellerModule.config.maxWeightToSell) -- CORRECTED
+        MaxWeightInput.Text = tostring(PetSellerModule.config.maxWeightToSell)
         MaxWeightInput.LayoutOrder = 2
 
         local PetTogglesLabel = Instance.new("TextLabel", SettingsFrame)
@@ -133,13 +133,12 @@ do
         PetTogglesLabel.LayoutOrder = 3; PetTogglesLabel.TextXAlignment = Enum.TextXAlignment.Left
 
         local layoutOrder = 4
-        for petName, isEnabled in pairs(self.config.sellablePets) do
+        for petName, isEnabled in pairs(PetSellerModule.config.sellablePets) do
             local toggleButton = Instance.new("TextButton", SettingsFrame)
             toggleButton.Size = UDim2.new(0.9, 0, 0, 30); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 16
             toggleButton.LayoutOrder = layoutOrder
             
             local function updateToggleState()
-                -- CORRECTED: Use the explicit module name instead of 'self'
                 if PetSellerModule.config.sellablePets[petName] then
                     toggleButton.Text = petName .. ": ON"; toggleButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
                 else
@@ -148,7 +147,6 @@ do
             end
             
             toggleButton.MouseButton1Click:Connect(function()
-                -- CORRECTED: Use the explicit module name instead of 'self'
                 PetSellerModule.config.sellablePets[petName] = not PetSellerModule.config.sellablePets[petName]
                 updateToggleState()
             end)
@@ -166,7 +164,6 @@ do
         SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function()
             local newWeight = tonumber(MaxWeightInput.Text)
-            -- CORRECTED: Use the explicit module name instead of 'self'
             if newWeight then PetSellerModule.config.maxWeightToSell = newWeight end
             PetSellerModule:SaveConfig()
             SettingsFrame.Visible = false
@@ -192,6 +189,7 @@ do
         local totalPetsSold = 0
         while true do
             local petSoldThisPass = false
+            -- Get a fresh list of backpack items for each scan
             for _, item in ipairs(self.backpack:GetChildren()) do
                 if item:IsA("Tool") then
                     for petName, shouldSell in pairs(self.config.sellablePets) do
@@ -210,17 +208,21 @@ do
                                         totalPetsSold = totalPetsSold + 1
                                         petSoldThisPass = true
                                         task.wait(1)
-                                        goto nextPass
+                                        break -- Break from the inner for loop (petName)
                                     end
                                 end
                             end
                         end
                     end
                 end
+                if petSoldThisPass then
+                    break -- Break from the outer for loop (item)
+                end
             end
-            ::nextPass::
+            
+            -- If we completed a full scan without selling a pet, we are done.
             if not petSoldThisPass then
-                break
+                break -- Exit the main while loop
             end
         end
 
