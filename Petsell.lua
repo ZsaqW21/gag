@@ -3,32 +3,29 @@
     - Sells selected pets that are under a user-defined weight.
     - Features a toggleable GUI to configure settings.
     - Saves your settings for future use.
-    - Uses a module pattern to prevent conflicts with the game's environment.
+    - Rewritten with a simplified structure for maximum compatibility.
 ]]
 
 -- Isolate the entire script in a do...end block to prevent global conflicts
 do
-    -- Create a self-contained module to hold all functions and state
-    local PetSellerModule = {}
-
     --================================================================================--
     --                         Services & Player Setup
     --================================================================================--
-    PetSellerModule.HttpService = game:GetService("HttpService")
-    PetSellerModule.Players = game:GetService("Players")
-    PetSellerModule.ReplicatedStorage = game:GetService("ReplicatedStorage")
-    PetSellerModule.LocalPlayer = PetSellerModule.Players.LocalPlayer
-    PetSellerModule.PlayerGui = PetSellerModule.LocalPlayer:WaitForChild("PlayerGui")
-    PetSellerModule.character = PetSellerModule.LocalPlayer.Character or PetSellerModule.LocalPlayer.CharacterAdded:Wait()
-    PetSellerModule.backpack = PetSellerModule.LocalPlayer:WaitForChild("Backpack")
-    PetSellerModule.humanoid = PetSellerModule.character:WaitForChild("Humanoid")
-    PetSellerModule.sellPetRemote = PetSellerModule.ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("SellPet_RE")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local LocalPlayer = Players.LocalPlayer
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local backpack = LocalPlayer:WaitForChild("Backpack")
+    local humanoid = character:WaitForChild("Humanoid")
+    local sellPetRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("SellPet_RE")
 
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    PetSellerModule.CONFIG_FILE_NAME = "AutoPetSellerConfig_v4_Final.json"
-    PetSellerModule.config = {
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v5_Simplified.json"
+    local config = {
         maxWeightToSell = 4,
         sellablePets = {
             ["Iguanodon"] = true,
@@ -38,28 +35,29 @@ do
             ["Raptor"] = false,
         }
     }
+    local OutputBox -- Forward declare for the logger
 
     --================================================================================--
     --                         Configuration Save/Load
     --================================================================================--
-    function PetSellerModule:SaveConfig()
+    local function saveConfig()
         if typeof(writefile) ~= "function" then return end
         pcall(function()
-            writefile(self.CONFIG_FILE_NAME, self.HttpService:JSONEncode(self.config))
+            writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(config))
         end)
     end
 
-    function PetSellerModule:LoadConfig()
+    local function loadConfig()
         if typeof(readfile) ~= "function" then return end
-        local success, fileData = pcall(readfile, self.CONFIG_FILE_NAME)
+        local success, fileData = pcall(readfile, CONFIG_FILE_NAME)
         if success and fileData then
-            local success2, decodedData = pcall(self.HttpService.JSONDecode, self.HttpService, fileData)
+            local success2, decodedData = pcall(HttpService.JSONDecode, HttpService, fileData)
             if success2 and typeof(decodedData) == "table" then
-                self.config.maxWeightToSell = decodedData.maxWeightToSell or self.config.maxWeightToSell
+                config.maxWeightToSell = decodedData.maxWeightToSell or config.maxWeightToSell
                 if typeof(decodedData.sellablePets) == "table" then
-                    for petName, _ in pairs(self.config.sellablePets) do
+                    for petName, _ in pairs(config.sellablePets) do
                         if decodedData.sellablePets[petName] ~= nil then
-                            self.config.sellablePets[petName] = decodedData.sellablePets[petName]
+                            config.sellablePets[petName] = decodedData.sellablePets[petName]
                         end
                     end
                 end
@@ -70,7 +68,7 @@ do
     --================================================================================--
     --                         GUI Creation & Management
     --================================================================================--
-    function PetSellerModule:CreateGUI()
+    local function createGUI()
         local ScreenGui = Instance.new("ScreenGui")
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
@@ -83,13 +81,12 @@ do
         LogTitle.Size = UDim2.new(1, 0, 0, 30); LogTitle.Text = "Pet Seller Log - Long-press to copy"
         LogTitle.BackgroundColor3 = Color3.fromRGB(60, 60, 60); LogTitle.TextColor3 = Color3.fromRGB(255, 255, 255); LogTitle.Font = Enum.Font.SourceSans; LogTitle.TextSize = 18
 
-        local OutputBox = Instance.new("TextBox", LogFrame)
+        OutputBox = Instance.new("TextBox", LogFrame)
         OutputBox.Size = UDim2.new(1, -20, 1, -80); OutputBox.Position = UDim2.new(0, 10, 0, 40)
         OutputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30); OutputBox.TextColor3 = Color3.fromRGB(240, 240, 240); OutputBox.Font = Enum.Font.Code
         OutputBox.TextSize = 14; OutputBox.MultiLine = true; OutputBox.TextEditable = false; OutputBox.ClearTextOnFocus = false
         OutputBox.TextXAlignment = Enum.TextXAlignment.Left; OutputBox.TextYAlignment = Enum.TextYAlignment.Top
-        self.OutputBox = OutputBox
-
+        
         local SettingsButton = Instance.new("TextButton", LogFrame)
         SettingsButton.Size = UDim2.new(0, 100, 0, 30); SettingsButton.Position = UDim2.new(1, -115, 1, -35)
         SettingsButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -124,7 +121,7 @@ do
         local MaxWeightInput = Instance.new("TextBox", SettingsFrame)
         MaxWeightInput.Size = UDim2.new(0.9, 0, 0, 30); MaxWeightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); MaxWeightInput.TextColor3 = Color3.fromRGB(255, 255, 255)
         MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 16
-        MaxWeightInput.Text = tostring(PetSellerModule.config.maxWeightToSell)
+        MaxWeightInput.Text = tostring(config.maxWeightToSell)
         MaxWeightInput.LayoutOrder = 2
 
         local PetTogglesLabel = Instance.new("TextLabel", SettingsFrame)
@@ -133,13 +130,13 @@ do
         PetTogglesLabel.LayoutOrder = 3; PetTogglesLabel.TextXAlignment = Enum.TextXAlignment.Left
 
         local layoutOrder = 4
-        for petName, isEnabled in pairs(PetSellerModule.config.sellablePets) do
+        for petName, isEnabled in pairs(config.sellablePets) do
             local toggleButton = Instance.new("TextButton", SettingsFrame)
             toggleButton.Size = UDim2.new(0.9, 0, 0, 30); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 16
             toggleButton.LayoutOrder = layoutOrder
             
             local function updateToggleState()
-                if PetSellerModule.config.sellablePets[petName] then
+                if config.sellablePets[petName] then
                     toggleButton.Text = petName .. ": ON"; toggleButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
                 else
                     toggleButton.Text = petName .. ": OFF"; toggleButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
@@ -147,7 +144,7 @@ do
             end
             
             toggleButton.MouseButton1Click:Connect(function()
-                PetSellerModule.config.sellablePets[petName] = not PetSellerModule.config.sellablePets[petName]
+                config.sellablePets[petName] = not config.sellablePets[petName]
                 updateToggleState()
             end)
             updateToggleState()
@@ -164,51 +161,50 @@ do
         SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function()
             local newWeight = tonumber(MaxWeightInput.Text)
-            if newWeight then PetSellerModule.config.maxWeightToSell = newWeight end
-            PetSellerModule:SaveConfig()
+            if newWeight then config.maxWeightToSell = newWeight end
+            saveConfig()
             SettingsFrame.Visible = false
         end)
 
-        ScreenGui.Parent = self.PlayerGui
+        ScreenGui.Parent = PlayerGui
     end
 
-    function PetSellerModule:Log(message)
-        if self.OutputBox then
-            self.OutputBox.Text = self.OutputBox.Text .. message .. "\n"
+    local function logToGui(message)
+        if OutputBox then
+            OutputBox.Text = OutputBox.Text .. message .. "\n"
         end
     end
 
     --================================================================================--
     --                         Pet Finding & Selling Logic
     --================================================================================--
-    function PetSellerModule:RunAutoSeller()
-        self:LoadConfig()
-        self:Log("🦕 Starting auto-seller with loaded settings...")
-        self:Log("   -> Selling pets under " .. self.config.maxWeightToSell .. " KG")
+    local function runAutoSeller()
+        loadConfig()
+        logToGui("🦕 Starting auto-seller with loaded settings...")
+        logToGui("   -> Selling pets under " .. config.maxWeightToSell .. " KG")
 
         local totalPetsSold = 0
         while true do
             local petSoldThisPass = false
-            -- Get a fresh list of backpack items for each scan
-            for _, item in ipairs(self.backpack:GetChildren()) do
+            for _, item in ipairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    for petName, shouldSell in pairs(self.config.sellablePets) do
+                    for petName, shouldSell in pairs(config.sellablePets) do
                         if shouldSell and item.Name:find(petName, 1, true) then
-                            self:Log("Checking item: '" .. item.Name .. "'")
+                            logToGui("Checking item: '" .. item.Name .. "'")
                             local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
                             if weightString then
                                 local weight = tonumber(weightString)
-                                if weight < self.config.maxWeightToSell then
-                                    self:Log("✅ Found '" .. item.Name .. "' ("..weight.."KG). Equipping to sell...")
-                                    self.humanoid:EquipTool(item)
+                                if weight < config.maxWeightToSell then
+                                    logToGui("✅ Found '" .. item.Name .. "' ("..weight.."KG). Equipping to sell...")
+                                    humanoid:EquipTool(item)
                                     task.wait(0.5)
-                                    local equippedPet = self.character:FindFirstChild(item.Name)
+                                    local equippedPet = character:FindFirstChild(item.Name)
                                     if equippedPet then
-                                        self.sellPetRemote:FireServer(equippedPet)
+                                        sellPetRemote:FireServer(equippedPet)
                                         totalPetsSold = totalPetsSold + 1
                                         petSoldThisPass = true
                                         task.wait(1)
-                                        break -- Break from the inner for loop (petName)
+                                        break
                                     end
                                 end
                             end
@@ -216,30 +212,10 @@ do
                     end
                 end
                 if petSoldThisPass then
-                    break -- Break from the outer for loop (item)
+                    break
                 end
             end
             
-            -- If we completed a full scan without selling a pet, we are done.
             if not petSoldThisPass then
-                break -- Exit the main while loop
-            end
-        end
-
-        if totalPetsSold > 0 then
-            self:Log("👍 Sell process completed. Sold " .. totalPetsSold .. " pet(s).")
-        else
-            self:Log("❌ No pets matching your criteria were found to sell.")
-        end
-    end
-
-    --================================================================================--
-    --                         Initialization
-    --================================================================================--
-    function PetSellerModule:Init()
-        self:CreateGUI()
-        self:RunAutoSeller()
-    end
-
-    PetSellerModule:Init()
-end
+                break
+            
