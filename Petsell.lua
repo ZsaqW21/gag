@@ -30,7 +30,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v9_Rescan.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v10_ResizedUI.json"
     local config = {
         maxWeightToSell = 4,
         sellablePets = {
@@ -85,6 +85,7 @@ do
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
 
+        -- RESIZED: Log Output Window
         local LogFrame = Instance.new("Frame", ScreenGui)
         LogFrame.Size = UDim2.new(0.5, 0, 0.4, 0); LogFrame.Position = UDim2.new(0.25, 0, 0.3, 0)
         LogFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); LogFrame.BorderColor3 = Color3.fromRGB(120, 120, 120); LogFrame.BorderSizePixel = 2
@@ -117,6 +118,7 @@ do
         StartScanButton.Font = Enum.Font.SourceSansBold; StartScanButton.Text = "Start New Scan"; StartScanButton.TextSize = 14
         local corner_scan = Instance.new("UICorner", StartScanButton); corner_scan.CornerRadius = UDim.new(0, 6)
 
+        -- RESIZED: Settings Window
         local SettingsFrame = Instance.new("Frame", ScreenGui)
         SettingsFrame.Size = UDim2.new(0, 220, 0, 170); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -85)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
@@ -147,8 +149,9 @@ do
         SelectPetsButton.LayoutOrder = 3
         local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
 
+        -- RESIZED: Pet Toggles Window
         local PetTogglesFrame = Instance.new("Frame", ScreenGui)
-        PetTogglesFrame.Size = UDim2.new(0, 220, 0, 340); PetTogglesFrame.Position = UDim2.new(0.5, -110, 0.5, -170)
+        PetTogglesFrame.Size = UDim2.new(0, 200, 0, 250); PetTogglesFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
         PetTogglesFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); PetTogglesFrame.BorderSizePixel = 2
         PetTogglesFrame.Visible = false
         local corner5 = Instance.new("UICorner", PetTogglesFrame); corner5.CornerRadius = UDim.new(0, 8)
@@ -157,14 +160,19 @@ do
         PetTogglesTitle.Size = UDim2.new(1, 0, 0, 30); PetTogglesTitle.Text = "Select Pets"
         PetTogglesTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetTogglesTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetTogglesTitle.Font = Enum.Font.SourceSansBold; PetTogglesTitle.TextSize = 16
 
-        local petListLayout = Instance.new("UIListLayout", PetTogglesFrame)
-        petListLayout.Padding = UDim.new(0, 10); petListLayout.SortOrder = Enum.SortOrder.LayoutOrder; petListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        -- NEW: Scrolling Frame for pet toggles
+        local PetListScroll = Instance.new("ScrollingFrame", PetTogglesFrame)
+        PetListScroll.Size = UDim2.new(1, 0, 1, -75); PetListScroll.Position = UDim2.new(0, 0, 0, 30)
+        PetListScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetListScroll.BorderSizePixel = 0
+        PetListScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); PetListScroll.ScrollBarThickness = 6
 
-        local layoutOrder = 1
+        local petListLayout = Instance.new("UIListLayout", PetListScroll)
+        petListLayout.Padding = UDim.new(0, 5); petListLayout.SortOrder = Enum.SortOrder.LayoutOrder; petListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+        local contentHeight = 0
         for petName, isEnabled in pairs(config.sellablePets) do
-            local toggleButton = Instance.new("TextButton", PetTogglesFrame)
+            local toggleButton = Instance.new("TextButton", PetListScroll)
             toggleButton.Size = UDim2.new(0.9, 0, 0, 28); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 14
-            toggleButton.LayoutOrder = layoutOrder
             
             local function updateToggleState()
                 if config.sellablePets[petName] then
@@ -179,13 +187,14 @@ do
                 updateToggleState()
             end)
             updateToggleState()
-            layoutOrder = layoutOrder + 1
+            contentHeight = contentHeight + 33 -- 28 for button, 5 for padding
         end
+        PetListScroll.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
 
         local PetSaveButton = Instance.new("TextButton", PetTogglesFrame)
-        PetSaveButton.Size = UDim2.new(0.9, 0, 0, 35); PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        PetSaveButton.Size = UDim2.new(0.9, 0, 0, 35); PetSaveButton.Position = UDim2.new(0.05, 0, 1, -40)
+        PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Close"; PetSaveButton.TextSize = 16
-        PetSaveButton.LayoutOrder = layoutOrder
         local corner6 = Instance.new("UICorner", PetSaveButton); corner6.CornerRadius = UDim.new(0, 6)
 
         local function saveAndCloseSettings()
