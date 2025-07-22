@@ -29,11 +29,14 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v10_Final.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v11_CorrectUUID.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.knownReadyEggs = {}
     FarmModule.placedPositions = {}
+
+    -- CORRECTED: Use the attribute name you provided for on-farm eggs
+    FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID" 
 
     FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
     FarmModule.PLACEMENT_ATTRIBUTE_VALUE = "Primal Egg"
@@ -140,6 +143,7 @@ do
             self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
             task.wait(0.3)
             for _, tool in ipairs(self.Backpack:GetChildren()) do
+                -- NOTE: The backpack item uses 'c' for its UUID, so we leave this unchanged.
                 if tool:IsA("Tool") and tool:GetAttribute("h") == "Dinosaur Egg" then
                     tool.Parent = self.Character; task.wait(0.3)
                     if tool:GetAttribute("c") then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 1, { ItemType = "PetEgg", ItemData = { UUID = tool:GetAttribute("c") } }) end
@@ -172,43 +176,49 @@ do
             
             self:UpdateButtonState("Checking Eggs")
             
-            -- CORRECTED LOGIC: Perform one clean, filtered scan at the start of the cycle.
             local allEggs = {}
             for _, obj in ipairs(objectsFolder:GetChildren()) do
-                if obj:IsA("Model") and obj:GetAttribute("c") then table.insert(allEggs, obj) end
+                -- CORRECTED: Filter using the correct UUID attribute
+                if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then
+                    table.insert(allEggs, obj)
+                end
             end
 
             for _, egg in ipairs(allEggs) do
-                if not self.knownReadyEggs[egg:GetAttribute("c")] and egg:GetAttribute("READY") == true then self.knownReadyEggs[egg:GetAttribute("c")] = true end
+                local uuid = egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)
+                if not self.knownReadyEggs[uuid] and egg:GetAttribute("READY") == true then
+                    self.knownReadyEggs[uuid] = true
+                end
             end
 
             local readyCount, eggsToHatch = 0, {}
             for _, egg in ipairs(allEggs) do
-                if self.knownReadyEggs[egg:GetAttribute("c")] then readyCount = readyCount + 1; table.insert(eggsToHatch, egg) end
+                local uuid = egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)
+                if self.knownReadyEggs[uuid] then
+                    readyCount = readyCount + 1
+                    table.insert(eggsToHatch, egg)
+                end
             end
             
             print("--- Farm Status Update ---\nTotal Valid Eggs Found: " .. #allEggs .. "\nReady Eggs (from memory): " .. readyCount .. "\n--------------------------")
             
-            -- PRIORITY 1: HATCHING
             if #allEggs >= 8 and readyCount == #allEggs then
                 self:UpdateButtonState("Hatching " .. #eggsToHatch)
                 for _, eggToHatch in ipairs(eggsToHatch) do
                     if not self.isEnabled then break end
-                    local uuid = eggToHatch:GetAttribute("c")
+                    local uuid = eggToHatch:GetAttribute(self.EGG_UUID_ATTRIBUTE)
                     local prompt = eggToHatch:FindFirstChild("ProximityPrompt", true)
                     if prompt then fireproximityprompt(prompt); if uuid then self.knownReadyEggs[uuid] = nil end; task.wait(0.2) end
                 end
                 task.wait(3); self:SaveConfig(); continue
             end
             
-            -- PRIORITY 2: PLACEMENT
             if #allEggs < 4 then
                 self:UpdateButtonState("Placing Eggs")
                 local toolInstance, location = self:FindPlacementTool()
                 if location then
                     if location == "backpack" then
-                        local humanoid = self.Character:WaitForChild("Humanoid")
-                        if humanoid then humanoid:EquipTool(toolInstance); task.wait(0.5) end
+                        if self.Character:FindFirstChildOfClass("Humanoid") then self.Character.Humanoid:EquipTool(toolInstance); task.wait(0.5) end
                     end
                     for i = 1, self.PLACEMENT_COUNT do
                         if not self.isEnabled then break end
@@ -220,7 +230,6 @@ do
                 end
             end
             
-            -- PRIORITY 3: CRAFTING
             self:SaveConfig()
             self:PerformOneCraftCycle()
             task.wait(5) 
@@ -260,5 +269,5 @@ do
         FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
     end
 
-    print("Combined Auto-Farm & Crafter (Final Logic) loaded.")
+    print("Combined Auto-Farm & Crafter (Correct UUID) loaded.")
 end
