@@ -6,7 +6,7 @@
     - Includes a startup delay to prevent conflicts with game scripts.
 ]]
 
--- CORRECTED: Use a more reliable method to wait for the game to fully load.
+-- Use a more reliable method to wait for the game to fully load.
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
@@ -30,15 +30,18 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v7_LoadedWait.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v8_Resized.json"
     local config = {
         maxWeightToSell = 4,
+        -- UPDATED: New list of pets
         sellablePets = {
             ["Iguanodon"] = true,
             ["Pachycephalosaurus"] = false,
             ["Parasaurolophus"] = false,
             ["Stegosaurus"] = false,
             ["Raptor"] = false,
+            ["Triceratops"] = false,
+            ["Pterodactyl"] = false,
         }
     }
     local OutputBox -- Forward declare for the logger
@@ -79,8 +82,9 @@ do
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
 
+        -- RESIZED: Log Output Window
         local LogFrame = Instance.new("Frame", ScreenGui)
-        LogFrame.Size = UDim2.new(0.8, 0, 0.7, 0); LogFrame.Position = UDim2.new(0.1, 0, 0.15, 0)
+        LogFrame.Size = UDim2.new(0.6, 0, 0.5, 0); LogFrame.Position = UDim2.new(0.2, 0, 0.25, 0)
         LogFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); LogFrame.BorderColor3 = Color3.fromRGB(120, 120, 120); LogFrame.BorderSizePixel = 2
 
         local LogTitle = Instance.new("TextLabel", LogFrame)
@@ -105,8 +109,9 @@ do
         CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 18
         local corner2 = Instance.new("UICorner", CloseButton); corner2.CornerRadius = UDim.new(0, 6)
 
+        -- RESIZED: Settings Window
         local SettingsFrame = Instance.new("Frame", ScreenGui)
-        SettingsFrame.Size = UDim2.new(0, 300, 0, 350); SettingsFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+        SettingsFrame.Size = UDim2.new(0, 250, 0, 180); SettingsFrame.Position = UDim2.new(0.5, -125, 0.5, -90)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
         SettingsFrame.Visible = false
         local corner3 = Instance.new("UICorner", SettingsFrame); corner3.CornerRadius = UDim.new(0, 8)
@@ -116,9 +121,7 @@ do
         SettingsTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255); SettingsTitle.Font = Enum.Font.SourceSansBold; SettingsTitle.TextSize = 18
 
         local listLayout = Instance.new("UIListLayout", SettingsFrame)
-        listLayout.Padding = UDim.new(0, 5); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        -- CORRECTED: Removed the invalid 'StartCorner' property
-        listLayout.Padding = UDim.new(0, 10)
+        listLayout.Padding = UDim.new(0, 10); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
         local MaxWeightLabel = Instance.new("TextLabel", SettingsFrame)
         MaxWeightLabel.Size = UDim2.new(0.9, 0, 0, 20); MaxWeightLabel.Text = "Sell pets UNDER this KG:"
@@ -131,14 +134,30 @@ do
         MaxWeightInput.Text = tostring(config.maxWeightToSell)
         MaxWeightInput.LayoutOrder = 2
 
-        local PetTogglesLabel = Instance.new("TextLabel", SettingsFrame)
-        PetTogglesLabel.Size = UDim2.new(0.9, 0, 0, 20); PetTogglesLabel.Text = "Select pets to sell:"
-        PetTogglesLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesLabel.TextColor3 = Color3.fromRGB(220, 220, 220); PetTogglesLabel.Font = Enum.Font.SourceSans; PetTogglesLabel.TextSize = 16
-        PetTogglesLabel.LayoutOrder = 3; PetTogglesLabel.TextXAlignment = Enum.TextXAlignment.Left
+        -- NEW: Button to open the pet selection menu
+        local SelectPetsButton = Instance.new("TextButton", SettingsFrame)
+        SelectPetsButton.Size = UDim2.new(0.9, 0, 0, 40); SelectPetsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); SelectPetsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SelectPetsButton.Font = Enum.Font.SourceSansBold; SelectPetsButton.Text = "Select Pets to Sell"; SelectPetsButton.TextSize = 18
+        SelectPetsButton.LayoutOrder = 3
+        local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
 
-        local layoutOrder = 4
+        -- NEW: Pet Toggles Window
+        local PetTogglesFrame = Instance.new("Frame", ScreenGui)
+        PetTogglesFrame.Size = UDim2.new(0, 250, 0, 380); PetTogglesFrame.Position = UDim2.new(0.5, -125, 0.5, -190)
+        PetTogglesFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); PetTogglesFrame.BorderSizePixel = 2
+        PetTogglesFrame.Visible = false
+        local corner5 = Instance.new("UICorner", PetTogglesFrame); corner5.CornerRadius = UDim.new(0, 8)
+
+        local PetTogglesTitle = Instance.new("TextLabel", PetTogglesFrame)
+        PetTogglesTitle.Size = UDim2.new(1, 0, 0, 30); PetTogglesTitle.Text = "Select Pets"
+        PetTogglesTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetTogglesTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetTogglesTitle.Font = Enum.Font.SourceSansBold; PetTogglesTitle.TextSize = 18
+
+        local petListLayout = Instance.new("UIListLayout", PetTogglesFrame)
+        petListLayout.Padding = UDim.new(0, 10); petListLayout.SortOrder = Enum.SortOrder.LayoutOrder; petListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+        local layoutOrder = 1
         for petName, isEnabled in pairs(config.sellablePets) do
-            local toggleButton = Instance.new("TextButton", SettingsFrame)
+            local toggleButton = Instance.new("TextButton", PetTogglesFrame)
             toggleButton.Size = UDim2.new(0.9, 0, 0, 30); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 16
             toggleButton.LayoutOrder = layoutOrder
             
@@ -158,20 +177,35 @@ do
             layoutOrder = layoutOrder + 1
         end
 
-        local SaveButton = Instance.new("TextButton", SettingsFrame)
-        SaveButton.Size = UDim2.new(0.9, 0, 0, 40); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 18
-        SaveButton.LayoutOrder = layoutOrder
-        local corner4 = Instance.new("UICorner", SaveButton); corner4.CornerRadius = UDim.new(0, 6)
+        local PetSaveButton = Instance.new("TextButton", PetTogglesFrame)
+        PetSaveButton.Size = UDim2.new(0.9, 0, 0, 40); PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Close"; PetSaveButton.TextSize = 18
+        PetSaveButton.LayoutOrder = layoutOrder
+        local corner6 = Instance.new("UICorner", PetSaveButton); corner6.CornerRadius = UDim.new(0, 6)
 
+        -- GUI Event Connections
         CloseButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
-        SaveButton.MouseButton1Click:Connect(function()
+        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = true; LogFrame.Visible = false end)
+        SelectPetsButton.MouseButton1Click:Connect(function() PetTogglesFrame.Visible = true; SettingsFrame.Visible = false end)
+        
+        local function saveAndCloseSettings()
             local newWeight = tonumber(MaxWeightInput.Text)
             if newWeight then config.maxWeightToSell = newWeight end
             saveConfig()
             SettingsFrame.Visible = false
-        end)
+            PetTogglesFrame.Visible = false
+            LogFrame.Visible = true
+        end
+        
+        PetSaveButton.MouseButton1Click:Connect(saveAndCloseSettings)
+        
+        -- Add a back button to the main settings frame
+        local BackButton = Instance.new("TextButton", SettingsFrame)
+        BackButton.Size = UDim2.new(0.9, 0, 0, 40); BackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); BackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Back to Log"; BackButton.TextSize = 18
+        BackButton.LayoutOrder = 4
+        local corner7 = Instance.new("UICorner", BackButton); corner7.CornerRadius = UDim.new(0, 6)
+        BackButton.MouseButton1Click:Connect(saveAndCloseSettings)
 
         ScreenGui.Parent = PlayerGui
     end
