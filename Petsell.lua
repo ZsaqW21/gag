@@ -1,5 +1,5 @@
 -- Wait for the game to fully load
-if not game:IsLoaded() then
+if not game or typeof(game.IsLoaded) ~= "function" or not game:IsLoaded() then
     game.Loaded:Wait()
 end
 task.wait(1) -- Add a small extra delay for safety
@@ -39,6 +39,7 @@ do
         maxWeightToSell = 4,
         targetEggCount = 3,
         activeRecipe = "Primal Egg", -- NEW: Active recipe for crafting
+        skipCrafting = false, -- NEW: Skip crafting toggle
         sellablePets = {
             ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
@@ -103,7 +104,8 @@ do
             sellablePets = self.config.sellablePets,
             placementPriority = self.config.placementPriority,
             targetEggCount = self.config.targetEggCount,
-            activeRecipe = self.config.activeRecipe
+            activeRecipe = self.config.activeRecipe,
+            skipCrafting = self.config.skipCrafting
         }
         pcall(function() writefile(self.CONFIG_FILE_NAME, self.HttpService:JSONEncode(configToSave)) end)
     end
@@ -118,6 +120,7 @@ do
                 self.config.maxWeightToSell = decodedData.maxWeightToSell or self.config.maxWeightToSell
                 self.config.targetEggCount = decodedData.targetEggCount or self.config.targetEggCount
                 self.config.activeRecipe = decodedData.activeRecipe or self.config.activeRecipe
+                self.config.skipCrafting = decodedData.skipCrafting or false
                 if typeof(decodedData.sellablePets) == "table" then
                     for petName, _ in pairs(self.config.sellablePets) do
                         if decodedData.sellablePets[petName] ~= nil then
@@ -182,7 +185,8 @@ do
         local originalLineOfSight = prompt.RequiresLineOfSight
         prompt.MaxActivationDistance = math.huge
         prompt.RequiresLineOfSight = false
-        fireproximityprompt(prompt)
+        local adornee = prompt.Parent
+        if adornee and adornee:IsA("BasePart") then fireproximityprompt(prompt) else warn("Skipping prompt: not attached to BasePart", adornee) end
         prompt.MaxActivationDistance = originalDistance
         prompt.RequiresLineOfSight = originalLineOfSight
     end
@@ -333,7 +337,11 @@ do
                 end
             end
             
-            self:PerformOneCraftCycle()
+            if not self.config.skipCrafting then
+                self:PerformOneCraftCycle()
+            else
+                self.TeleportService:Teleport(game.PlaceId)
+            end
             task.wait(3)
         end
         self:SaveConfig()
@@ -450,7 +458,30 @@ do
             local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName; recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
             recipeButton.MouseButton1Click:Connect(function() self.config.activeRecipe = recipeName; activeRecipeLabel.Text = "Active: " .. recipeName; self:SaveConfig() end)
         end
-        local RecipeBackButton = Instance.new("TextButton", RecipeFrame); RecipeBackButton.Size = UDim2.new(0.9, 0, 0, 35); RecipeBackButton.Position = UDim2.new(0.05, 0, 1, -40); RecipeBackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); RecipeBackButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeBackButton.Font = Enum.Font.SourceSansBold; RecipeBackButton.Text = "Back"; RecipeBackButton.TextSize = 16
+        
+        local SkipCraftingToggle = Instance.new("TextButton", RecipeFrame)
+        SkipCraftingToggle.Size = UDim2.new(0.9, 0, 0, 30)
+        SkipCraftingToggle.Position = UDim2.new(0.05, 0, 1, -80)
+        SkipCraftingToggle.BackgroundColor3 = Color3.fromRGB(100, 80, 40)
+        SkipCraftingToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SkipCraftingToggle.Font = Enum.Font.SourceSansBold
+        SkipCraftingToggle.TextSize = 14
+        local function updateSkipBtn()
+            if FarmModule.config.skipCrafting then
+                SkipCraftingToggle.Text = "✔ Skip Crafting: ON"
+                SkipCraftingToggle.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
+            else
+                SkipCraftingToggle.Text = "✖ Skip Crafting: OFF"
+                SkipCraftingToggle.BackgroundColor3 = Color3.fromRGB(140, 40, 40)
+            end
+        end
+        SkipCraftingToggle.MouseButton1Click:Connect(function()
+            FarmModule.config.skipCrafting = not FarmModule.config.skipCrafting
+            updateSkipBtn()
+            FarmModule:SaveConfig()
+        end)
+        updateSkipBtn()
+local RecipeBackButton = Instance.new("TextButton", RecipeFrame); RecipeBackButton.Size = UDim2.new(0.9, 0, 0, 35); RecipeBackButton.Position = UDim2.new(0.05, 0, 1, -40); RecipeBackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); RecipeBackButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeBackButton.Font = Enum.Font.SourceSansBold; RecipeBackButton.Text = "Back"; RecipeBackButton.TextSize = 16
         RecipeBackButton.MouseButton1Click:Connect(function() RecipeFrame.Visible = false; SettingsFrame.Visible = true end)
 
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
