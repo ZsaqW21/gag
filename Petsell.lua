@@ -27,7 +27,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    PetSellerModule.CONFIG_FILE_NAME = "AutoPetSellerConfig_v2.json"
+    PetSellerModule.CONFIG_FILE_NAME = "AutoPetSellerConfig_v3_Fixed.json"
     PetSellerModule.config = {
         maxWeightToSell = 4,
         sellablePets = {
@@ -88,7 +88,7 @@ do
         OutputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30); OutputBox.TextColor3 = Color3.fromRGB(240, 240, 240); OutputBox.Font = Enum.Font.Code
         OutputBox.TextSize = 14; OutputBox.MultiLine = true; OutputBox.TextEditable = false; OutputBox.ClearTextOnFocus = false
         OutputBox.TextXAlignment = Enum.TextXAlignment.Left; OutputBox.TextYAlignment = Enum.TextYAlignment.Top
-        self.OutputBox = OutputBox -- Store reference for logger
+        self.OutputBox = OutputBox
 
         local SettingsButton = Instance.new("TextButton", LogFrame)
         SettingsButton.Size = UDim2.new(0, 100, 0, 30); SettingsButton.Position = UDim2.new(1, -115, 1, -35)
@@ -123,7 +123,8 @@ do
 
         local MaxWeightInput = Instance.new("TextBox", SettingsFrame)
         MaxWeightInput.Size = UDim2.new(0.9, 0, 0, 30); MaxWeightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); MaxWeightInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-        MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 16; MaxWeightInput.Text = tostring(self.config.maxWeightToSell)
+        MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 16
+        MaxWeightInput.Text = tostring(PetSellerModule.config.maxWeightToSell) -- CORRECTED
         MaxWeightInput.LayoutOrder = 2
 
         local PetTogglesLabel = Instance.new("TextLabel", SettingsFrame)
@@ -138,7 +139,8 @@ do
             toggleButton.LayoutOrder = layoutOrder
             
             local function updateToggleState()
-                if self.config.sellablePets[petName] then
+                -- CORRECTED: Use the explicit module name instead of 'self'
+                if PetSellerModule.config.sellablePets[petName] then
                     toggleButton.Text = petName .. ": ON"; toggleButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
                 else
                     toggleButton.Text = petName .. ": OFF"; toggleButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
@@ -146,7 +148,8 @@ do
             end
             
             toggleButton.MouseButton1Click:Connect(function()
-                self.config.sellablePets[petName] = not self.config.sellablePets[petName]
+                -- CORRECTED: Use the explicit module name instead of 'self'
+                PetSellerModule.config.sellablePets[petName] = not PetSellerModule.config.sellablePets[petName]
                 updateToggleState()
             end)
             updateToggleState()
@@ -163,8 +166,9 @@ do
         SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function()
             local newWeight = tonumber(MaxWeightInput.Text)
-            if newWeight then self.config.maxWeightToSell = newWeight end
-            self:SaveConfig()
+            -- CORRECTED: Use the explicit module name instead of 'self'
+            if newWeight then PetSellerModule.config.maxWeightToSell = newWeight end
+            PetSellerModule:SaveConfig()
             SettingsFrame.Visible = false
         end)
 
