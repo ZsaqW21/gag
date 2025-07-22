@@ -26,7 +26,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v14_TimeToHatch.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v15_CraftFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -120,6 +120,16 @@ do
     function FarmModule:PerformOneCraftCycle()
         local success, err = pcall(function()
             self:UpdateButtonState("Crafting...")
+            
+            -- CORRECTED LOGIC: Find the DinoEvent folder and move it to the workspace if it's not there.
+            local DinoEvent = self.Workspace:FindFirstChild("DinoEvent")
+            if not DinoEvent then
+                DinoEvent = self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
+                if DinoEvent then
+                    DinoEvent.Parent = self.Workspace
+                end
+            end
+            
             local DinoTable = self.Workspace:WaitForChild("DinoEvent"):WaitForChild("DinoCraftingTable")
             self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
             task.wait(0.3)
@@ -152,25 +162,15 @@ do
             if not objectsFolder then task.wait(5); continue end
             
             self:UpdateButtonState("Checking Eggs")
-            
             local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
-            local readyCount = 0;
-            for _, egg in ipairs(allEggs) do
-                -- CORRECTED: Check for TimeToHatch == 0
-                if egg:GetAttribute("TimeToHatch") == 0 then
-                    readyCount = readyCount + 1
-                end
-            end
-            
-            print("--- Farm Status Update ---\nTotal Valid Eggs: " .. #allEggs .. "\nCurrently Ready Eggs: " .. readyCount .. "\n--------------------------")
+            local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
             
             -- PRIORITY 1: HATCHING
             if #allEggs >= 8 and readyCount == #allEggs then
                 self:UpdateButtonState("Hatching " .. readyCount)
                 for _, eggToHatch in ipairs(allEggs) do
                     if not self.isEnabled then break end
-                    self:HatchOneEgg(eggToHatch)
-                    task.wait(0.2)
+                    self:HatchOneEgg(eggToHatch); task.wait(0.2)
                 end
                 task.wait(3); continue
             end
@@ -232,8 +232,8 @@ do
     FarmModule:LoadConfig()
     FarmModule:UpdateButtonState()
     if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
+        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
     end
 
-    print("Combined Auto-Farm & Crafter (Final) loaded.")
+    print("Combined Auto-Farm & Crafter (Crafting Fix) loaded.")
 end
