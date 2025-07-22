@@ -31,25 +31,19 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v8_FinalFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v9_GUILogicFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
     FarmModule.config = {
         maxWeightToSell = 4,
-        eggsToPlace = 10, -- NEW: Configurable number of eggs to place
+        eggsToPlace = 10,
         sellablePets = {
-            -- Primal Egg
             ["Parasaurolophus"] = false, ["Iguanodon"] = true, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
-            -- Dinosaur Egg
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
-            -- Zen Egg
             ["Shiba Inu"] = false, ["Nihonzaru"] = false, ["Tanuki"] = false, ["Tanchozuru"] = false, ["Kappa"] = false,
-            -- Paradise Egg
             ["Ostrich"] = false, ["Peacock"] = false, ["Capybara"] = false, ["Scarlet Macaw"] = false,
-            -- Bug Egg
             ["Caterpillar"] = false, ["Snail"] = false, ["Giant Ant"] = false, ["Praying Mantis"] = false,
-            -- Mythical Egg
             ["Grey Mouse"] = false, ["Brown Mouse"] = false, ["Squirrel"] = false, ["Red Giant Ant"] = false,
         },
         placementPriority = {
@@ -149,7 +143,7 @@ do
             iv = true
             for _, p in ipairs(self.placedPositions) do if (r - p).Magnitude < self.MINIMUM_DISTANCE then iv = false; break end end
             a = a + 1
-        until iv or a >= 100 -- Increased attempts to prevent failures
+        until iv or a >= 100
         if iv then self.PetEggService:FireServer("CreateEgg", r); table.insert(self.placedPositions, r) end
     end
     
@@ -224,18 +218,13 @@ do
     function FarmModule:PerformOneCraftCycle()
         local success, err = pcall(function()
             self:UpdateButtonState("Crafting...")
-            
-            -- CORRECTED: Robustly find and parent the DinoEvent folder
             local DinoEvent = self.Workspace:FindFirstChild("DinoEvent")
             if not DinoEvent then
                 DinoEvent = self.ReplicatedStorage.Modules.UpdateService:FindFirstChild("DinoEvent")
                 if DinoEvent then DinoEvent.Parent = self.Workspace end
             end
-            
             local DinoTable = self.Workspace:WaitForChild("DinoEvent", 5):WaitForChild("DinoCraftingTable", 5)
-            if not DinoTable then
-                error("Could not find DinoCraftingTable. Aborting craft cycle.")
-            end
+            if not DinoTable then error("Could not find DinoCraftingTable. Aborting craft cycle.") end
 
             self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
             task.wait(0.3)
@@ -342,6 +331,12 @@ do
         local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
         local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
 
+        -- Create all the sub-menus but keep them hidden
+        local PetCategoryMenu = Instance.new("Frame", screenGui); PetCategoryMenu.Size = UDim2.new(0, 200, 0, 250); PetCategoryMenu.Position = UDim2.new(0.5, -100, 0.5, -125); PetCategoryMenu.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryMenu.BorderColor3 = Color3.fromRGB(150, 150, 150); PetCategoryMenu.BorderSizePixel = 2; PetCategoryMenu.Visible = false
+        local PetCategoryTitle = Instance.new("TextLabel", PetCategoryMenu); PetCategoryTitle.Size = UDim2.new(1, 0, 0, 30); PetCategoryTitle.Text = "Pet Categories"; PetCategoryTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetCategoryTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetCategoryTitle.Font = Enum.Font.SourceSansBold; PetCategoryTitle.TextSize = 16
+        local PetCategoryScroll = Instance.new("ScrollingFrame", PetCategoryMenu); PetCategoryScroll.Size = UDim2.new(1, 0, 1, -75); PetCategoryScroll.Position = UDim2.new(0, 0, 0, 30); PetCategoryScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryScroll.BorderSizePixel = 0; PetCategoryScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); PetCategoryScroll.ScrollBarThickness = 6
+        local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        
         local subMenus = {}
         for categoryName, petList in pairs(self.petCategories) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
@@ -357,19 +352,44 @@ do
             end
             scroll.CanvasSize = UDim2.new(0, 0, 0, contentH)
             local backBtn = Instance.new("TextButton", frame); backBtn.Size = UDim2.new(0.9, 0, 0, 35); backBtn.Position = UDim2.new(0.05, 0, 1, -40); backBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); backBtn.TextColor3 = Color3.fromRGB(255, 255, 255); backBtn.Font = Enum.Font.SourceSansBold; backBtn.Text = "Back"; backBtn.TextSize = 16
-            backBtn.MouseButton1Click:Connect(function() frame.Visible = false; SettingsFrame.Visible = true end)
+            backBtn.MouseButton1Click:Connect(function() frame.Visible = false; PetCategoryMenu.Visible = true end)
             subMenus[categoryName] = frame
         end
         
+        for categoryName, _ in pairs(self.petCategories) do
+            local catButton = Instance.new("TextButton", PetCategoryScroll)
+            catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            catButton.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; subMenus[categoryName].Visible = true end)
+        end
+        local catBackBtn = Instance.new("TextButton", PetCategoryMenu); catBackBtn.Size = UDim2.new(0.9, 0, 0, 35); catBackBtn.Position = UDim2.new(0.05, 0, 1, -40); catBackBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); catBackBtn.TextColor3 = Color3.fromRGB(255, 255, 255); catBackBtn.Font = Enum.Font.SourceSansBold; catBackBtn.Text = "Back"; catBackBtn.TextSize = 16
+        catBackBtn.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; SettingsFrame.Visible = true end)
+
+        local EggFrame = Instance.new("Frame", screenGui); EggFrame.Size = UDim2.new(0, 220, 0, 280); EggFrame.Position = UDim2.new(0.5, -110, 0.5, -140); EggFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); EggFrame.BorderSizePixel = 2; EggFrame.Visible = false
+        local EggTitle = Instance.new("TextLabel", EggFrame); EggTitle.Size = UDim2.new(1, 0, 0, 30); EggTitle.Text = "Egg Placement Priority"; EggTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); EggTitle.TextColor3 = Color3.fromRGB(255, 255, 255); EggTitle.Font = Enum.Font.SourceSansBold; EggTitle.TextSize = 16
+        local EggListScroll = Instance.new("ScrollingFrame", EggFrame); EggListScroll.Size = UDim2.new(1, 0, 1, -75); EggListScroll.Position = UDim2.new(0, 0, 0, 30); EggListScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggListScroll.BorderSizePixel = 0; EggListScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); EggListScroll.ScrollBarThickness = 6
+        local eggListLayout = Instance.new("UIListLayout", EggListScroll); eggListLayout.Padding = UDim.new(0, 5); eggListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        
+        local function redrawEggPriorityList()
+            for _, v in ipairs(EggListScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
+            local eggContentHeight = 5
+            for i, eggName in ipairs(self.config.placementPriority) do
+                local itemFrame = Instance.new("Frame", EggListScroll); itemFrame.Size = UDim2.new(0.9, 0, 0, 30); itemFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                local eggLabel = Instance.new("TextLabel", itemFrame); eggLabel.Size = UDim2.new(1, -60, 1, 0); eggLabel.Text = i .. ". " .. eggName; eggLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); eggLabel.TextColor3 = Color3.fromRGB(255, 255, 255); eggLabel.Font = Enum.Font.SourceSans; eggLabel.TextSize = 14; eggLabel.TextXAlignment = Enum.TextXAlignment.Left
+                local upButton = Instance.new("TextButton", itemFrame); upButton.Size = UDim2.new(0, 25, 1, 0); upButton.Position = UDim2.new(1, -55, 0, 0); upButton.Text = "▲"; upButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+                local downButton = Instance.new("TextButton", itemFrame); downButton.Size = UDim2.new(0, 25, 1, 0); downButton.Position = UDim2.new(1, -25, 0, 0); downButton.Text = "▼"; downButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+                upButton.MouseButton1Click:Connect(function() if i > 1 then local temp = self.config.placementPriority[i]; self.config.placementPriority[i] = self.config.placementPriority[i-1]; self.config.placementPriority[i-1] = temp; redrawEggPriorityList() end end)
+                downButton.MouseButton1Click:Connect(function() if i < #self.config.placementPriority then local temp = self.config.placementPriority[i]; self.config.placementPriority[i] = self.config.placementPriority[i+1]; self.config.placementPriority[i+1] = temp; redrawEggPriorityList() end end)
+                eggContentHeight = eggContentHeight + 35
+            end
+            EggListScroll.CanvasSize = UDim2.new(0, 0, 0, eggContentHeight)
+        end
+        local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
+        EggSaveButton.MouseButton1Click:Connect(function() self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true end)
+
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false end)
-        SelectPetsButton.MouseButton1Click:Connect(function()
-            SettingsFrame.Visible = false
-            local firstCategory = next(self.petCategories)
-            if firstCategory and subMenus[firstCategory] then
-                subMenus[firstCategory].Visible = true
-            end
-        end)
+        SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
+        EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
         
         mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() FarmModule:ResetConfig() end)
