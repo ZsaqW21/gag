@@ -111,7 +111,6 @@ do
         CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 16
         local corner2 = Instance.new("UICorner", CloseButton); corner2.CornerRadius = UDim.new(0, 6)
         
-        -- NEW: Start Scan Button
         local StartScanButton = Instance.new("TextButton", LogFrame)
         StartScanButton.Size = UDim2.new(0, 110, 0, 30); StartScanButton.Position = UDim2.new(0.5, -55, 1, -35)
         StartScanButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70); StartScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -196,7 +195,6 @@ do
             SettingsFrame.Visible = false
             PetTogglesFrame.Visible = false
             LogFrame.Visible = true
-            -- RE-RUN SCAN: Call the main function again with new settings
             startAutoSellScan()
         end
         
@@ -209,7 +207,6 @@ do
         local corner7 = Instance.new("UICorner", BackButton); corner7.CornerRadius = UDim.new(0, 6)
         BackButton.MouseButton1Click:Connect(saveAndCloseSettings)
 
-        -- GUI Event Connections
         CloseButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
         SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = true; LogFrame.Visible = false end)
         SelectPetsButton.MouseButton1Click:Connect(function() PetTogglesFrame.Visible = true; SettingsFrame.Visible = false end)
@@ -233,9 +230,8 @@ do
             return
         end
         isScanning = true
-        OutputBox.Text = "" -- Clear the log for the new scan
+        OutputBox.Text = ""
 
-        loadConfig()
         logToGui("🦕 Starting auto-seller with loaded settings...")
         logToGui("   -> Selling pets under " .. config.maxWeightToSell .. " KG")
 
@@ -288,6 +284,7 @@ do
     --================================================================================--
     --                         Initialization
     --================================================================================--
+    loadConfig() -- Load settings BEFORE creating the GUI
     createGUI()
     startAutoSellScan()
 end
