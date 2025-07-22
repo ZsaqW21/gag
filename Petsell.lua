@@ -30,7 +30,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v10_ResizedUI.json"
+    local CONFIG_FILE_NAME = "AutoPetSellerConfig_v11_SimpleUI.json"
     local config = {
         maxWeightToSell = 4,
         sellablePets = {
@@ -43,8 +43,11 @@ do
             ["Pterodactyl"] = false,
         }
     }
-    local OutputBox -- Forward declare for the logger
     local isScanning = false -- Prevent multiple scans at once
+
+    -- Forward declare functions
+    local startAutoSellScan
+    local OutputBox
 
     --================================================================================--
     --                         Configuration Save/Load
@@ -74,9 +77,6 @@ do
         end
     end
 
-    -- Forward declare the main selling function
-    local startAutoSellScan
-
     --================================================================================--
     --                         GUI Creation & Management
     --================================================================================--
@@ -85,40 +85,14 @@ do
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
 
-        -- RESIZED: Log Output Window
-        local LogFrame = Instance.new("Frame", ScreenGui)
-        LogFrame.Size = UDim2.new(0.5, 0, 0.4, 0); LogFrame.Position = UDim2.new(0.25, 0, 0.3, 0)
-        LogFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); LogFrame.BorderColor3 = Color3.fromRGB(120, 120, 120); LogFrame.BorderSizePixel = 2
-
-        local LogTitle = Instance.new("TextLabel", LogFrame)
-        LogTitle.Size = UDim2.new(1, 0, 0, 30); LogTitle.Text = "Pet Seller Log"
-        LogTitle.BackgroundColor3 = Color3.fromRGB(60, 60, 60); LogTitle.TextColor3 = Color3.fromRGB(255, 255, 255); LogTitle.Font = Enum.Font.SourceSans; LogTitle.TextSize = 16
-
-        OutputBox = Instance.new("TextBox", LogFrame)
-        OutputBox.Size = UDim2.new(1, -20, 1, -80); OutputBox.Position = UDim2.new(0, 10, 0, 40)
-        OutputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30); OutputBox.TextColor3 = Color3.fromRGB(240, 240, 240); OutputBox.Font = Enum.Font.Code
-        OutputBox.TextSize = 12; OutputBox.MultiLine = true; OutputBox.TextEditable = false; OutputBox.ClearTextOnFocus = false
-        OutputBox.TextXAlignment = Enum.TextXAlignment.Left; OutputBox.TextYAlignment = Enum.TextYAlignment.Top
-        
-        local SettingsButton = Instance.new("TextButton", LogFrame)
-        SettingsButton.Size = UDim2.new(0, 90, 0, 30); SettingsButton.Position = UDim2.new(1, -105, 1, -35)
+        -- Main Settings Button (Top Right)
+        local SettingsButton = Instance.new("TextButton", ScreenGui)
+        SettingsButton.Size = UDim2.new(0, 120, 0, 40); SettingsButton.Position = UDim2.new(1, -130, 0, 10)
         SettingsButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SettingsButton.Font = Enum.Font.SourceSansBold; SettingsButton.Text = "Settings"; SettingsButton.TextSize = 16
+        SettingsButton.Font = Enum.Font.SourceSansBold; SettingsButton.Text = "Pet Seller Settings"; SettingsButton.TextSize = 14
         local corner1 = Instance.new("UICorner", SettingsButton); corner1.CornerRadius = UDim.new(0, 6)
 
-        local CloseButton = Instance.new("TextButton", LogFrame)
-        CloseButton.Size = UDim2.new(0, 90, 0, 30); CloseButton.Position = UDim2.new(0, 10, 1, -35)
-        CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50); CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 16
-        local corner2 = Instance.new("UICorner", CloseButton); corner2.CornerRadius = UDim.new(0, 6)
-        
-        local StartScanButton = Instance.new("TextButton", LogFrame)
-        StartScanButton.Size = UDim2.new(0, 110, 0, 30); StartScanButton.Position = UDim2.new(0.5, -55, 1, -35)
-        StartScanButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70); StartScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        StartScanButton.Font = Enum.Font.SourceSansBold; StartScanButton.Text = "Start New Scan"; StartScanButton.TextSize = 14
-        local corner_scan = Instance.new("UICorner", StartScanButton); corner_scan.CornerRadius = UDim.new(0, 6)
-
-        -- RESIZED: Settings Window
+        -- Settings Window
         local SettingsFrame = Instance.new("Frame", ScreenGui)
         SettingsFrame.Size = UDim2.new(0, 220, 0, 170); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -85)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
@@ -149,7 +123,7 @@ do
         SelectPetsButton.LayoutOrder = 3
         local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
 
-        -- RESIZED: Pet Toggles Window
+        -- Pet Toggles Window
         local PetTogglesFrame = Instance.new("Frame", ScreenGui)
         PetTogglesFrame.Size = UDim2.new(0, 200, 0, 250); PetTogglesFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
         PetTogglesFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); PetTogglesFrame.BorderSizePixel = 2
@@ -160,7 +134,6 @@ do
         PetTogglesTitle.Size = UDim2.new(1, 0, 0, 30); PetTogglesTitle.Text = "Select Pets"
         PetTogglesTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetTogglesTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetTogglesTitle.Font = Enum.Font.SourceSansBold; PetTogglesTitle.TextSize = 16
 
-        -- NEW: Scrolling Frame for pet toggles
         local PetListScroll = Instance.new("ScrollingFrame", PetTogglesFrame)
         PetListScroll.Size = UDim2.new(1, 0, 1, -75); PetListScroll.Position = UDim2.new(0, 0, 0, 30)
         PetListScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetListScroll.BorderSizePixel = 0
@@ -187,14 +160,14 @@ do
                 updateToggleState()
             end)
             updateToggleState()
-            contentHeight = contentHeight + 33 -- 28 for button, 5 for padding
+            contentHeight = contentHeight + 33
         end
         PetListScroll.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
 
         local PetSaveButton = Instance.new("TextButton", PetTogglesFrame)
         PetSaveButton.Size = UDim2.new(0.9, 0, 0, 35); PetSaveButton.Position = UDim2.new(0.05, 0, 1, -40)
         PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Close"; PetSaveButton.TextSize = 16
+        PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Re-scan"; PetSaveButton.TextSize = 16
         local corner6 = Instance.new("UICorner", PetSaveButton); corner6.CornerRadius = UDim.new(0, 6)
 
         local function saveAndCloseSettings()
@@ -203,7 +176,7 @@ do
             saveConfig()
             SettingsFrame.Visible = false
             PetTogglesFrame.Visible = false
-            LogFrame.Visible = true
+            -- Trigger a new scan after saving
             startAutoSellScan()
         end
         
@@ -211,23 +184,19 @@ do
         
         local BackButton = Instance.new("TextButton", SettingsFrame)
         BackButton.Size = UDim2.new(0.9, 0, 0, 35); BackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); BackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Back to Log"; BackButton.TextSize = 16
+        BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Close"; BackButton.TextSize = 16
         BackButton.LayoutOrder = 4
         local corner7 = Instance.new("UICorner", BackButton); corner7.CornerRadius = UDim.new(0, 6)
-        BackButton.MouseButton1Click:Connect(saveAndCloseSettings)
+        BackButton.MouseButton1Click:Connect(function()
+            SettingsFrame.Visible = false
+            PetTogglesFrame.Visible = false
+        end)
 
-        CloseButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = true; LogFrame.Visible = false end)
+        -- GUI Event Connections
+        SettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SelectPetsButton.MouseButton1Click:Connect(function() PetTogglesFrame.Visible = true; SettingsFrame.Visible = false end)
-        StartScanButton.MouseButton1Click:Connect(function() startAutoSellScan() end)
 
         ScreenGui.Parent = PlayerGui
-    end
-
-    local function logToGui(message)
-        if OutputBox then
-            OutputBox.Text = OutputBox.Text .. message .. "\n"
-        end
     end
 
     --================================================================================--
@@ -235,14 +204,14 @@ do
     --================================================================================--
     startAutoSellScan = function()
         if isScanning then
-            logToGui("--- A scan is already in progress. ---")
+            print("A scan is already in progress.")
             return
         end
         isScanning = true
-        OutputBox.Text = ""
-
-        logToGui("🦕 Starting auto-seller with loaded settings...")
-        logToGui("   -> Selling pets under " .. config.maxWeightToSell .. " KG")
+        
+        loadConfig()
+        print("🦕 Starting auto-seller with loaded settings...")
+        print("   -> Selling pets under " .. config.maxWeightToSell .. " KG")
 
         local totalPetsSold = 0
         while true do
@@ -251,12 +220,11 @@ do
                 if item:IsA("Tool") then
                     for petName, shouldSell in pairs(config.sellablePets) do
                         if shouldSell and item.Name:find(petName, 1, true) then
-                            logToGui("Checking item: '" .. item.Name .. "'")
                             local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
                             if weightString then
                                 local weight = tonumber(weightString)
                                 if weight < config.maxWeightToSell then
-                                    logToGui("✅ Found '" .. item.Name .. "' ("..weight.."KG). Equipping to sell...")
+                                    print("✅ Found '" .. item.Name .. "' ("..weight.."KG). Equipping to sell...")
                                     humanoid:EquipTool(item)
                                     task.wait(0.5)
                                     local equippedPet = character:FindFirstChild(item.Name)
@@ -283,9 +251,9 @@ do
         end
 
         if totalPetsSold > 0 then
-            logToGui("👍 Sell process completed. Sold " .. totalPetsSold .. " pet(s).")
+            print("👍 Sell process completed. Sold " .. totalPetsSold .. " pet(s).")
         else
-            logToGui("❌ No pets matching your criteria were found to sell.")
+            print("❌ No pets matching your criteria were found to sell.")
         end
         isScanning = false
     end
@@ -293,7 +261,6 @@ do
     --================================================================================--
     --                         Initialization
     --================================================================================--
-    loadConfig() -- Load settings BEFORE creating the GUI
     createGUI()
     startAutoSellScan()
 end
