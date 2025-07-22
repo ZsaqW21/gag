@@ -26,7 +26,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v8_Final.json"
+    local CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v5_Priority.json"
     local isEnabled = false
     local mainThread = nil
     local knownReadyEggs = {}
@@ -117,16 +117,14 @@ do
     --                         GUI & Master Loop
     --================================================================================--
     local screenGui = Instance.new("ScreenGui", PlayerGui); screenGui.Name = "CombinedFarmCraftGui"; screenGui.ResetOnSpawn = false
-    local mainButton = Instance.new("TextButton", screenGui); mainButton.Name = "ToggleButton"; mainButton.TextSize = 20; mainButton.Font = Enum.Font.SourceSansBold; mainButton.TextColor3 = Color3.fromRGB(255, 255, 255); mainButton.Size = UDim2.new(0, 180, 0, 50); mainButton.Position = UDim2.new(1, -200, 1, -70)
-    local corner = Instance.new("UICorner", mainButton); corner.CornerRadius = UDim.new(0, 8)
-    local resetButton = Instance.new("TextButton", screenGui); resetButton.Name = "ResetButton"; resetButton.Text = "Reset Memory"; resetButton.TextSize = 14; resetButton.Font = Enum.Font.SourceSansBold; resetButton.TextColor3 = Color3.fromRGB(255, 255, 255); resetButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40); resetButton.Size = UDim2.new(0, 100, 0, 30); resetButton.Position = UDim2.new(1, -310, 1, -60)
-    local corner2 = Instance.new("UICorner", resetButton); corner2.CornerRadius = UDim.new(0, 6)
+    local button = Instance.new("TextButton", screenGui); button.Name = "ToggleButton"; button.TextSize = 20; button.Font = Enum.Font.SourceSansBold; button.TextColor3 = Color3.fromRGB(255, 255, 255); button.Size = UDim2.new(0, 180, 0, 50); button.Position = UDim2.new(1, -200, 1, -70)
+    local corner = Instance.new("UICorner", button); corner.CornerRadius = UDim.new(0, 8)
 
     local function UniqueFarm_UpdateButtonState(statusText)
         if isEnabled then
-            mainButton.Text = "AutoFarm: " .. (statusText or "ON"); mainButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
+            button.Text = "AutoFarm: " .. (statusText or "ON"); button.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
         else
-            mainButton.Text = "AutoFarm: OFF"; mainButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
+            button.Text = "AutoFarm: OFF"; button.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
         end
     end
 
@@ -163,49 +161,25 @@ do
 
     UniqueFarm_RunMasterLoop = function()
         while isEnabled do
+            -- PHASE 1: FIND FARM
             UniqueFarm_UpdateButtonState("Finding Farm")
             local myFarm = UniqueFarm_FindFarmByLocation()
             if not myFarm then warn("Could not find farm, retrying..."); task.wait(5); continue end
             local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
             if not objectsFolder then warn("Could not find Objects_Physical folder, retrying..."); task.wait(5); continue end
             
+            -- PHASE 2: CHECK FOR HATCHING
             UniqueFarm_UpdateButtonState("Checking Eggs")
-            
-            -- NEW: Filter for valid egg models first to get an accurate count
-            local allChildren = objectsFolder:GetChildren()
-            local allEggs = {}
-            for _, obj in ipairs(allChildren) do
-                -- A valid egg is a Model with a UUID attribute ('c')
-                if obj:IsA("Model") and obj:GetAttribute("c") then
-                    table.insert(allEggs, obj)
-                end
-            end
-
-            -- Update memory with any newly ready eggs from our filtered list
+            local allEggs, readyCount, eggsToHatch = objectsFolder:GetChildren(), 0, {}
             for _, egg in ipairs(allEggs) do
                 local uuid = egg:GetAttribute("c")
-                if not knownReadyEggs[uuid] and egg:GetAttribute("READY") == true then
-                    knownReadyEggs[uuid] = true
-                end
+                if uuid and not knownReadyEggs[uuid] and egg:GetAttribute("READY") == true then knownReadyEggs[uuid] = true end
             end
-
-            -- Count how many eggs are ready using our memory
-            local readyCount, eggsToHatch = 0, {}
             for _, egg in ipairs(allEggs) do
                 local uuid = egg:GetAttribute("c")
-                if knownReadyEggs[uuid] then
-                    readyCount = readyCount + 1
-                    table.insert(eggsToHatch, egg)
-                end
+                if uuid and knownReadyEggs[uuid] then readyCount = readyCount + 1; table.insert(eggsToHatch, egg) end
             end
             
-            -- DEBUG: Print the counts to the console
-            print("--- Egg Status ---")
-            print("Valid Egg Models Found: " .. #allEggs)
-            print("Ready Eggs Counted: " .. readyCount)
-            print("--------------------")
-
-            -- Check for hatching using the accurate, filtered counts
             if #allEggs >= 8 and readyCount == #allEggs then
                 UniqueFarm_UpdateButtonState("Hatching " .. #eggsToHatch)
                 for _, eggToHatch in ipairs(eggsToHatch) do
@@ -214,10 +188,13 @@ do
                     local prompt = eggToHatch:FindFirstChild("ProximityPrompt", true)
                     if prompt then fireproximityprompt(prompt); if uuid then knownReadyEggs[uuid] = nil end; task.wait(0.2) end
                 end
-                task.wait(3); UniqueFarm_SaveConfig(); continue
+                task.wait(3)
+                UniqueFarm_SaveConfig()
+                continue -- Restart the loop to re-evaluate the farm's state
             end
             
-            -- Check for placement using the accurate, filtered counts
+            -- PHASE 3: CHECK FOR PLACEMENT
+            allEggs = objectsFolder:GetChildren()
             if #allEggs < 4 then
                 UniqueFarm_UpdateButtonState("Placing Eggs")
                 local toolInstance, location = UniqueFarm_FindPlacementTool()
@@ -230,23 +207,25 @@ do
                         if not isEnabled then break end
                         UniqueFarm_PlaceOneEgg(); task.wait(0.5)
                     end
-                    task.wait(1); UniqueFarm_SaveConfig(); continue
+                    task.wait(1)
+                    UniqueFarm_SaveConfig()
+                    continue -- Restart the loop to re-evaluate
                 else
                     warn("Cannot place eggs: Primal Egg tool not found.")
                 end
             end
             
-            -- Default to Crafting
+            -- PHASE 4: DEFAULT TO CRAFTING
             UniqueFarm_SaveConfig()
             UniqueFarm_PerformOneCraftCycle()
             
-            task.wait(5) 
+            task.wait(5) -- Failsafe in case teleport fails
         end
         UniqueFarm_SaveConfig()
         UniqueFarm_UpdateButtonState()
     end
 
-    mainButton.MouseButton1Click:Connect(function()
+    button.MouseButton1Click:Connect(function()
         isEnabled = not isEnabled
         UniqueFarm_UpdateButtonState()
         if isEnabled then mainThread = task.spawn(UniqueFarm_RunMasterLoop)
@@ -255,24 +234,10 @@ do
             UniqueFarm_SaveConfig()
         end
     end)
-    
-    resetButton.MouseButton1Click:Connect(function()
-        print("Resetting saved egg memory...")
-        knownReadyEggs = {}
-        UniqueFarm_SaveConfig()
-        print("✅ Memory cleared. Please toggle the main button OFF and then ON to restart the cycle.")
-        if isEnabled then
-            isEnabled = false
-            if mainThread then task.cancel(mainThread); mainThread = nil end
-            UniqueFarm_UpdateButtonState()
-        end
-    end)
 
     UniqueFarm_LoadConfig()
     UniqueFarm_UpdateButtonState()
-    if isEnabled then
-        mainThread = task.spawn(UniqueFarm_RunMasterLoop)
-    end
+    if isEnabled then mainThread = task.spawn(UniqueFarm_RunMasterLoop) end
 
-    print("Combined Auto-Farm & Crafter (Final Logic) loaded.")
+    print("Combined Auto-Farm & Crafter (Priority Logic) loaded.")
 end
