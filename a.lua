@@ -29,11 +29,12 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v12_UnequipFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v11_LoopFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.knownReadyEggs = {}
     FarmModule.placedPositions = {}
+    FarmModule.hasPlacedEggsThisCycle = false -- NEW: Flag to prevent placement loops
 
     FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID" 
     FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
@@ -86,7 +87,6 @@ do
     end
 
     function FarmModule:FindPlacementTool()
-        -- This function now only needs to check the backpack
         for _, item in ipairs(self.Backpack:GetChildren()) do
             if item:IsA("Tool") and item:GetAttribute(self.PLACEMENT_ATTRIBUTE_NAME) == self.PLACEMENT_ATTRIBUTE_VALUE then return item end
         end
@@ -162,6 +162,9 @@ do
     end
 
     function FarmModule:RunMasterLoop()
+        -- Reset the placement flag every time a full new cycle begins (e.g., after a teleport)
+        self.hasPlacedEggsThisCycle = false
+
         while self.isEnabled do
             self:UpdateButtonState("Finding Farm")
             local myFarm = self:FindFarmByLocation()
@@ -171,23 +174,9 @@ do
             
             self:UpdateButtonState("Checking Eggs")
             
-            local allEggs = {}
-            for _, obj in ipairs(objectsFolder:GetChildren()) do
-                if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end
-            end
-
-            for _, egg in ipairs(allEggs) do
-                if not self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] and egg:GetAttribute("READY") == true then
-                    self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] = true
-                end
-            end
-
-            local readyCount, eggsToHatch = 0, {}
-            for _, egg in ipairs(allEggs) do
-                if self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] then
-                    readyCount = readyCount + 1; table.insert(eggsToHatch, egg)
-                end
-            end
+            local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
+            for _, egg in ipairs(allEggs) do if not self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] and egg:GetAttribute("READY") == true then self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] = true end end
+            local readyCount, eggsToHatch = 0, {}; for _, egg in ipairs(allEggs) do if self.knownReadyEggs[egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)] then readyCount = readyCount + 1; table.insert(eggsToHatch, egg) end end
             
             -- PRIORITY 1: HATCHING
             if #allEggs >= 8 and readyCount == #allEggs then
@@ -202,32 +191,23 @@ do
             end
             
             -- PRIORITY 2: PLACEMENT
-            allEggs = {} -- Rescan after potential hatching
-            for _, obj in ipairs(objectsFolder:GetChildren()) do
-                if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end
-            end
-            
-            if #allEggs < 4 then
+            if #allEggs < 4 and not self.hasPlacedEggsThisCycle then
                 self:UpdateButtonState("Preparing to Place")
                 local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
                 if humanoid then
-                    -- CORRECTED LOGIC: Unequip current item, then find and equip the correct tool.
-                    humanoid:UnequipTools()
-                    task.wait(0.2)
-
+                    humanoid:UnequipTools(); task.wait(0.2)
                     local toolInstance = self:FindPlacementTool()
                     if toolInstance then
-                        humanoid:EquipTool(toolInstance)
-                        task.wait(0.5)
-                        
+                        humanoid:EquipTool(toolInstance); task.wait(0.5)
                         self:UpdateButtonState("Placing Eggs")
                         for i = 1, self.PLACEMENT_COUNT do
                             if not self.isEnabled then break end
                             self:PlaceOneEgg(); task.wait(0.5)
                         end
+                        self.hasPlacedEggsThisCycle = true -- Set the flag to prevent re-placing
                         task.wait(1); self:SaveConfig(); continue
                     else
-                        warn("Cannot place eggs: Primal Egg tool not found in backpack.")
+                        warn("Cannot place eggs: Primal Egg tool not found.")
                     end
                 end
             end
@@ -269,8 +249,8 @@ do
     FarmModule:LoadConfig()
     FarmModule:UpdateButtonState()
     if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
+        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
     end
 
-    print("Combined Auto-Farm & Crafter (Unequip Fix) loaded.")
+    print("Combined Auto-Farm & Crafter (Placement Loop Fix) loaded.")
 end
