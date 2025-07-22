@@ -117,7 +117,8 @@ do
 
         local listLayout = Instance.new("UIListLayout", SettingsFrame)
         listLayout.Padding = UDim.new(0, 5); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        listLayout.StartCorner = Enum.StartCorner.TopLeft; listLayout.Padding = UDim.new(0, 10)
+        -- CORRECTED: Removed the invalid 'StartCorner' property
+        listLayout.Padding = UDim.new(0, 10)
 
         local MaxWeightLabel = Instance.new("TextLabel", SettingsFrame)
         MaxWeightLabel.Size = UDim2.new(0.9, 0, 0, 20); MaxWeightLabel.Text = "Sell pets UNDER this KG:"
