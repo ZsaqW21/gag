@@ -31,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v5_AdvancedSettings.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v6_FinalFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -56,7 +56,6 @@ do
         }
     }
     
-    -- Structure for the new pet menus
     FarmModule.petCategories = {
         ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
         ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
@@ -167,7 +166,7 @@ do
     --================================================================================--
     --                         GUI & Master Loop
     --================================================================================--
-    local screenGui, mainButton, resetButton, PetSettingsButton -- Forward declare GUI elements
+    local screenGui, mainButton, resetButton, PetSettingsButton
 
     function FarmModule:UpdateButtonState(statusText)
         if self.isEnabled then
@@ -352,15 +351,12 @@ do
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false end)
         SelectPetsButton.MouseButton1Click:Connect(function()
             SettingsFrame.Visible = false
-            -- This is a placeholder for a future menu that would let you select a category
-            -- For now, it opens the first category as an example
             local firstCategory = next(self.petCategories)
             if firstCategory and subMenus[firstCategory] then
                 subMenus[firstCategory].Visible = true
             end
         end)
         
-        -- CORRECTED: Moved button connections here, after the buttons are created.
         mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() FarmModule:ResetConfig() end)
     end
