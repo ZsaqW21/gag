@@ -82,75 +82,75 @@ do
         ScreenGui.Name = "PetSellerGUI"
         ScreenGui.ResetOnSpawn = false
 
-        -- RESIZED: Log Output Window
+        -- RESIZED: Log Output Window made smaller
         local LogFrame = Instance.new("Frame", ScreenGui)
-        LogFrame.Size = UDim2.new(0.6, 0, 0.5, 0); LogFrame.Position = UDim2.new(0.2, 0, 0.25, 0)
+        LogFrame.Size = UDim2.new(0.5, 0, 0.4, 0); LogFrame.Position = UDim2.new(0.25, 0, 0.3, 0)
         LogFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); LogFrame.BorderColor3 = Color3.fromRGB(120, 120, 120); LogFrame.BorderSizePixel = 2
 
         local LogTitle = Instance.new("TextLabel", LogFrame)
-        LogTitle.Size = UDim2.new(1, 0, 0, 30); LogTitle.Text = "Pet Seller Log - Long-press to copy"
-        LogTitle.BackgroundColor3 = Color3.fromRGB(60, 60, 60); LogTitle.TextColor3 = Color3.fromRGB(255, 255, 255); LogTitle.Font = Enum.Font.SourceSans; LogTitle.TextSize = 18
+        LogTitle.Size = UDim2.new(1, 0, 0, 30); LogTitle.Text = "Pet Seller Log"
+        LogTitle.BackgroundColor3 = Color3.fromRGB(60, 60, 60); LogTitle.TextColor3 = Color3.fromRGB(255, 255, 255); LogTitle.Font = Enum.Font.SourceSans; LogTitle.TextSize = 16
 
         OutputBox = Instance.new("TextBox", LogFrame)
         OutputBox.Size = UDim2.new(1, -20, 1, -80); OutputBox.Position = UDim2.new(0, 10, 0, 40)
         OutputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30); OutputBox.TextColor3 = Color3.fromRGB(240, 240, 240); OutputBox.Font = Enum.Font.Code
-        OutputBox.TextSize = 14; OutputBox.MultiLine = true; OutputBox.TextEditable = false; OutputBox.ClearTextOnFocus = false
+        OutputBox.TextSize = 12; OutputBox.MultiLine = true; OutputBox.TextEditable = false; OutputBox.ClearTextOnFocus = false
         OutputBox.TextXAlignment = Enum.TextXAlignment.Left; OutputBox.TextYAlignment = Enum.TextYAlignment.Top
         
         local SettingsButton = Instance.new("TextButton", LogFrame)
-        SettingsButton.Size = UDim2.new(0, 100, 0, 30); SettingsButton.Position = UDim2.new(1, -115, 1, -35)
+        SettingsButton.Size = UDim2.new(0, 90, 0, 30); SettingsButton.Position = UDim2.new(1, -105, 1, -35)
         SettingsButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SettingsButton.Font = Enum.Font.SourceSansBold; SettingsButton.Text = "Settings"; SettingsButton.TextSize = 18
+        SettingsButton.Font = Enum.Font.SourceSansBold; SettingsButton.Text = "Settings"; SettingsButton.TextSize = 16
         local corner1 = Instance.new("UICorner", SettingsButton); corner1.CornerRadius = UDim.new(0, 6)
 
         local CloseButton = Instance.new("TextButton", LogFrame)
-        CloseButton.Size = UDim2.new(0, 100, 0, 30); CloseButton.Position = UDim2.new(0, 10, 1, -35)
+        CloseButton.Size = UDim2.new(0, 90, 0, 30); CloseButton.Position = UDim2.new(0, 10, 1, -35)
         CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50); CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 18
+        CloseButton.Font = Enum.Font.SourceSansBold; CloseButton.Text = "Close"; CloseButton.TextSize = 16
         local corner2 = Instance.new("UICorner", CloseButton); corner2.CornerRadius = UDim.new(0, 6)
 
-        -- RESIZED: Settings Window
+        -- RESIZED: Settings Window made smaller
         local SettingsFrame = Instance.new("Frame", ScreenGui)
-        SettingsFrame.Size = UDim2.new(0, 250, 0, 180); SettingsFrame.Position = UDim2.new(0.5, -125, 0.5, -90)
+        SettingsFrame.Size = UDim2.new(0, 220, 0, 170); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -85)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
         SettingsFrame.Visible = false
         local corner3 = Instance.new("UICorner", SettingsFrame); corner3.CornerRadius = UDim.new(0, 8)
 
         local SettingsTitle = Instance.new("TextLabel", SettingsFrame)
         SettingsTitle.Size = UDim2.new(1, 0, 0, 30); SettingsTitle.Text = "Auto-Sell Settings"
-        SettingsTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255); SettingsTitle.Font = Enum.Font.SourceSansBold; SettingsTitle.TextSize = 18
+        SettingsTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255); SettingsTitle.Font = Enum.Font.SourceSansBold; SettingsTitle.TextSize = 16
 
         local listLayout = Instance.new("UIListLayout", SettingsFrame)
         listLayout.Padding = UDim.new(0, 10); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
         local MaxWeightLabel = Instance.new("TextLabel", SettingsFrame)
         MaxWeightLabel.Size = UDim2.new(0.9, 0, 0, 20); MaxWeightLabel.Text = "Sell pets UNDER this KG:"
-        MaxWeightLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); MaxWeightLabel.TextColor3 = Color3.fromRGB(220, 220, 220); MaxWeightLabel.Font = Enum.Font.SourceSans; MaxWeightLabel.TextSize = 16
+        MaxWeightLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); MaxWeightLabel.TextColor3 = Color3.fromRGB(220, 220, 220); MaxWeightLabel.Font = Enum.Font.SourceSans; MaxWeightLabel.TextSize = 14
         MaxWeightLabel.LayoutOrder = 1; MaxWeightLabel.TextXAlignment = Enum.TextXAlignment.Left
 
         local MaxWeightInput = Instance.new("TextBox", SettingsFrame)
         MaxWeightInput.Size = UDim2.new(0.9, 0, 0, 30); MaxWeightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); MaxWeightInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-        MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 16
+        MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 14
         MaxWeightInput.Text = tostring(config.maxWeightToSell)
         MaxWeightInput.LayoutOrder = 2
 
-        -- NEW: Button to open the pet selection menu
+        -- RESIZED: Button made smaller
         local SelectPetsButton = Instance.new("TextButton", SettingsFrame)
-        SelectPetsButton.Size = UDim2.new(0.9, 0, 0, 40); SelectPetsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); SelectPetsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SelectPetsButton.Font = Enum.Font.SourceSansBold; SelectPetsButton.Text = "Select Pets to Sell"; SelectPetsButton.TextSize = 18
+        SelectPetsButton.Size = UDim2.new(0.9, 0, 0, 35); SelectPetsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); SelectPetsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SelectPetsButton.Font = Enum.Font.SourceSansBold; SelectPetsButton.Text = "Select Pets to Sell"; SelectPetsButton.TextSize = 16
         SelectPetsButton.LayoutOrder = 3
         local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
 
-        -- NEW: Pet Toggles Window
+        -- RESIZED: Pet Toggles Window made smaller
         local PetTogglesFrame = Instance.new("Frame", ScreenGui)
-        PetTogglesFrame.Size = UDim2.new(0, 250, 0, 380); PetTogglesFrame.Position = UDim2.new(0.5, -125, 0.5, -190)
+        PetTogglesFrame.Size = UDim2.new(0, 220, 0, 340); PetTogglesFrame.Position = UDim2.new(0.5, -110, 0.5, -170)
         PetTogglesFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetTogglesFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); PetTogglesFrame.BorderSizePixel = 2
         PetTogglesFrame.Visible = false
         local corner5 = Instance.new("UICorner", PetTogglesFrame); corner5.CornerRadius = UDim.new(0, 8)
 
         local PetTogglesTitle = Instance.new("TextLabel", PetTogglesFrame)
         PetTogglesTitle.Size = UDim2.new(1, 0, 0, 30); PetTogglesTitle.Text = "Select Pets"
-        PetTogglesTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetTogglesTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetTogglesTitle.Font = Enum.Font.SourceSansBold; PetTogglesTitle.TextSize = 18
+        PetTogglesTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetTogglesTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetTogglesTitle.Font = Enum.Font.SourceSansBold; PetTogglesTitle.TextSize = 16
 
         local petListLayout = Instance.new("UIListLayout", PetTogglesFrame)
         petListLayout.Padding = UDim.new(0, 10); petListLayout.SortOrder = Enum.SortOrder.LayoutOrder; petListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -158,7 +158,7 @@ do
         local layoutOrder = 1
         for petName, isEnabled in pairs(config.sellablePets) do
             local toggleButton = Instance.new("TextButton", PetTogglesFrame)
-            toggleButton.Size = UDim2.new(0.9, 0, 0, 30); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 16
+            toggleButton.Size = UDim2.new(0.9, 0, 0, 28); toggleButton.Font = Enum.Font.SourceSansBold; toggleButton.TextSize = 14
             toggleButton.LayoutOrder = layoutOrder
             
             local function updateToggleState()
@@ -178,8 +178,8 @@ do
         end
 
         local PetSaveButton = Instance.new("TextButton", PetTogglesFrame)
-        PetSaveButton.Size = UDim2.new(0.9, 0, 0, 40); PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Close"; PetSaveButton.TextSize = 18
+        PetSaveButton.Size = UDim2.new(0.9, 0, 0, 35); PetSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        PetSaveButton.Font = Enum.Font.SourceSansBold; PetSaveButton.Text = "Save & Close"; PetSaveButton.TextSize = 16
         PetSaveButton.LayoutOrder = layoutOrder
         local corner6 = Instance.new("UICorner", PetSaveButton); corner6.CornerRadius = UDim.new(0, 6)
 
@@ -199,10 +199,10 @@ do
         
         PetSaveButton.MouseButton1Click:Connect(saveAndCloseSettings)
         
-        -- Add a back button to the main settings frame
+        -- RESIZED: Button made smaller
         local BackButton = Instance.new("TextButton", SettingsFrame)
-        BackButton.Size = UDim2.new(0.9, 0, 0, 40); BackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); BackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Back to Log"; BackButton.TextSize = 18
+        BackButton.Size = UDim2.new(0.9, 0, 0, 35); BackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); BackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        BackButton.Font = Enum.Font.SourceSansBold; BackButton.Text = "Back to Log"; BackButton.TextSize = 16
         BackButton.LayoutOrder = 4
         local corner7 = Instance.new("UICorner", BackButton); corner7.CornerRadius = UDim.new(0, 6)
         BackButton.MouseButton1Click:Connect(saveAndCloseSettings)
