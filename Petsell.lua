@@ -31,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v11_Final.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v12_Cleanup.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -165,15 +165,19 @@ do
     local screenGui, mainButton, resetButton, PetSettingsButton
 
     function FarmModule:UpdateButtonState(statusText)
-        if self.isEnabled then
-            mainButton.Text = "AutoFarm: " .. (statusText or "ON"); mainButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
-        else
-            mainButton.Text = "AutoFarm: OFF"; mainButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
+        if mainButton then
+            if self.isEnabled then
+                mainButton.Text = "AutoFarm: " .. (statusText or "ON"); mainButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
+            else
+                mainButton.Text = "AutoFarm: OFF"; mainButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
+            end
         end
     end
     
     function FarmModule:UpdateGUIVisibility()
-        PetSettingsButton.Visible = not self.isEnabled
+        if PetSettingsButton then
+            PetSettingsButton.Visible = not self.isEnabled
+        end
     end
 
     function FarmModule:RunAutoSeller()
@@ -297,6 +301,11 @@ do
     end
 
     function FarmModule:CreateGUI()
+        -- CORRECTED: Cleanup routine at the start of GUI creation
+        if self.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
+            self.PlayerGui.CombinedFarmCraftGui:Destroy()
+        end
+        
         screenGui = Instance.new("ScreenGui", self.PlayerGui); screenGui.Name = "CombinedFarmCraftGui"; screenGui.ResetOnSpawn = false
         mainButton = Instance.new("TextButton", screenGui); mainButton.Name = "ToggleButton"; mainButton.TextSize = 20; mainButton.Font = Enum.Font.SourceSansBold; mainButton.TextColor3 = Color3.fromRGB(255, 255, 255); mainButton.Size = UDim2.new(0, 180, 0, 50); mainButton.Position = UDim2.new(1, -200, 0, 10)
         local corner = Instance.new("UICorner", mainButton); corner.CornerRadius = UDim.new(0, 8)
@@ -421,13 +430,17 @@ do
         end
     end
     
+    -- CORRECTED: Initialization order
+    if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
+        FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy()
+    end
     FarmModule:LoadConfig()
     FarmModule:CreateGUI()
     FarmModule:UpdateButtonState()
     FarmModule:UpdateGUIVisibility()
     if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
+        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
     end
 
-    print("Combined Auto-Farm & Crafter (with Advanced Settings) loaded.")
+    print("Combined Auto-Farm & Crafter (Final) loaded.")
 end
