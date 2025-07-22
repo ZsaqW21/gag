@@ -31,15 +31,16 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v7_GUFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v8_FinalFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
     FarmModule.config = {
-        maxWeightToSell = 3,
+        maxWeightToSell = 4,
+        eggsToPlace = 10, -- NEW: Configurable number of eggs to place
         sellablePets = {
             -- Primal Egg
-            ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
+            ["Parasaurolophus"] = false, ["Iguanodon"] = true, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
             -- Dinosaur Egg
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
             -- Zen Egg
@@ -67,7 +68,6 @@ do
 
     FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
     FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
-    FarmModule.PLACEMENT_COUNT = 10
     FarmModule.MINIMUM_DISTANCE = 5
     FarmModule.corner1 = Vector3.new(-2.5596256256103516, 0.13552704453468323, 47.833213806152344)
     FarmModule.corner2 = Vector3.new(26.806381225585938, 0.13552704453468323, 106.00519561767578)
@@ -81,7 +81,8 @@ do
             enabled = self.isEnabled,
             maxWeightToSell = self.config.maxWeightToSell,
             sellablePets = self.config.sellablePets,
-            placementPriority = self.config.placementPriority
+            placementPriority = self.config.placementPriority,
+            eggsToPlace = self.config.eggsToPlace
         }
         pcall(function() writefile(self.CONFIG_FILE_NAME, self.HttpService:JSONEncode(configToSave)) end)
     end
@@ -94,6 +95,7 @@ do
             if success2 and typeof(decodedData) == "table" then
                 self.isEnabled = decodedData.enabled or false
                 self.config.maxWeightToSell = decodedData.maxWeightToSell or self.config.maxWeightToSell
+                self.config.eggsToPlace = decodedData.eggsToPlace or self.config.eggsToPlace
                 if typeof(decodedData.sellablePets) == "table" then
                     for petName, _ in pairs(self.config.sellablePets) do
                         if decodedData.sellablePets[petName] ~= nil then
@@ -147,7 +149,7 @@ do
             iv = true
             for _, p in ipairs(self.placedPositions) do if (r - p).Magnitude < self.MINIMUM_DISTANCE then iv = false; break end end
             a = a + 1
-        until iv or a >= 50
+        until iv or a >= 100 -- Increased attempts to prevent failures
         if iv then self.PetEggService:FireServer("CreateEgg", r); table.insert(self.placedPositions, r) end
     end
     
@@ -222,7 +224,19 @@ do
     function FarmModule:PerformOneCraftCycle()
         local success, err = pcall(function()
             self:UpdateButtonState("Crafting...")
-            local DinoTable = self.Workspace:WaitForChild("DinoEvent"):WaitForChild("DinoCraftingTable")
+            
+            -- CORRECTED: Robustly find and parent the DinoEvent folder
+            local DinoEvent = self.Workspace:FindFirstChild("DinoEvent")
+            if not DinoEvent then
+                DinoEvent = self.ReplicatedStorage.Modules.UpdateService:FindFirstChild("DinoEvent")
+                if DinoEvent then DinoEvent.Parent = self.Workspace end
+            end
+            
+            local DinoTable = self.Workspace:WaitForChild("DinoEvent", 5):WaitForChild("DinoCraftingTable", 5)
+            if not DinoTable then
+                error("Could not find DinoCraftingTable. Aborting craft cycle.")
+            end
+
             self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
             task.wait(0.3)
             for _, tool in ipairs(self.Backpack:GetChildren()) do
@@ -275,7 +289,7 @@ do
                     if toolInstance then
                         humanoid:EquipTool(toolInstance); task.wait(0.5)
                         self.placedPositions = {}
-                        for i = 1, self.PLACEMENT_COUNT do
+                        for i = 1, self.config.eggsToPlace do
                             if not self.isEnabled then break end
                             self:PlaceOneEgg(); task.wait(0.5)
                         end
@@ -328,7 +342,6 @@ do
         local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
         local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
 
-        -- Create all the sub-menus but keep them hidden
         local subMenus = {}
         for categoryName, petList in pairs(self.petCategories) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
@@ -352,14 +365,12 @@ do
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false end)
         SelectPetsButton.MouseButton1Click:Connect(function()
             SettingsFrame.Visible = false
-            -- This is still a placeholder, you would need a category selection menu here
             local firstCategory = next(self.petCategories)
             if firstCategory and subMenus[firstCategory] then
                 subMenus[firstCategory].Visible = true
             end
         end)
         
-        -- CORRECTED: Moved the main button connections to after they are created.
         mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() FarmModule:ResetConfig() end)
     end
