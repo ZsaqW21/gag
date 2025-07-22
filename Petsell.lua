@@ -31,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v6_FinalFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v7_GUFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -328,6 +328,7 @@ do
         local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
         local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
 
+        -- Create all the sub-menus but keep them hidden
         local subMenus = {}
         for categoryName, petList in pairs(self.petCategories) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
@@ -351,12 +352,14 @@ do
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false end)
         SelectPetsButton.MouseButton1Click:Connect(function()
             SettingsFrame.Visible = false
+            -- This is still a placeholder, you would need a category selection menu here
             local firstCategory = next(self.petCategories)
             if firstCategory and subMenus[firstCategory] then
                 subMenus[firstCategory].Visible = true
             end
         end)
         
+        -- CORRECTED: Moved the main button connections to after they are created.
         mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() FarmModule:ResetConfig() end)
     end
