@@ -29,15 +29,13 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v11_CorrectUUID.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedAutoFarmConfig_v12_UnequipFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.knownReadyEggs = {}
     FarmModule.placedPositions = {}
 
-    -- CORRECTED: Use the attribute name you provided for on-farm eggs
     FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID" 
-
     FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
     FarmModule.PLACEMENT_ATTRIBUTE_VALUE = "Primal Egg"
     FarmModule.PLACEMENT_COUNT = 10
@@ -88,13 +86,11 @@ do
     end
 
     function FarmModule:FindPlacementTool()
-        for _, item in ipairs(self.Character:GetChildren()) do
-            if item:IsA("Tool") and item:GetAttribute(self.PLACEMENT_ATTRIBUTE_NAME) == self.PLACEMENT_ATTRIBUTE_VALUE then return item, "equipped" end
-        end
+        -- This function now only needs to check the backpack
         for _, item in ipairs(self.Backpack:GetChildren()) do
-            if item:IsA("Tool") and item:GetAttribute(self.PLACEMENT_ATTRIBUTE_NAME) == self.PLACEMENT_ATTRIBUTE_VALUE then return item, "backpack" end
+            if item:IsA("Tool") and item:GetAttribute(self.PLACEMENT_ATTRIBUTE_NAME) == self.PLACEMENT_ATTRIBUTE_VALUE then return item end
         end
-        return nil, nil
+        return nil
     end
 
     function FarmModule:PlaceOneEgg()
@@ -121,153 +117,4 @@ do
     --                         GUI & Master Loop
     --================================================================================--
     local screenGui = Instance.new("ScreenGui", FarmModule.PlayerGui); screenGui.Name = "CombinedFarmCraftGui"; screenGui.ResetOnSpawn = false
-    local mainButton = Instance.new("TextButton", screenGui); mainButton.Name = "ToggleButton"; mainButton.TextSize = 20; mainButton.Font = Enum.Font.SourceSansBold; mainButton.TextColor3 = Color3.fromRGB(255, 255, 255); mainButton.Size = UDim2.new(0, 180, 0, 50); mainButton.Position = UDim2.new(1, -200, 1, -70)
-    local corner = Instance.new("UICorner", mainButton); corner.CornerRadius = UDim.new(0, 8)
-    local resetButton = Instance.new("TextButton", screenGui); resetButton.Name = "ResetButton"; resetButton.Text = "Reset Memory"; resetButton.TextSize = 14; resetButton.Font = Enum.Font.SourceSansBold; resetButton.TextColor3 = Color3.fromRGB(255, 255, 255); resetButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40); resetButton.Size = UDim2.new(0, 100, 0, 30); resetButton.Position = UDim2.new(1, -310, 1, -60)
-    local corner2 = Instance.new("UICorner", resetButton); corner2.CornerRadius = UDim.new(0, 6)
-
-    function FarmModule:UpdateButtonState(statusText)
-        if self.isEnabled then
-            mainButton.Text = "AutoFarm: " .. (statusText or "ON"); mainButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
-        else
-            mainButton.Text = "AutoFarm: OFF"; mainButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
-        end
-    end
-
-    function FarmModule:PerformOneCraftCycle()
-        local success, err = pcall(function()
-            self:UpdateButtonState("Crafting...")
-            local DinoEvent = self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
-            if DinoEvent and DinoEvent:IsDescendantOf(self.ReplicatedStorage) then DinoEvent.Parent = self.Workspace end
-            local DinoTable = self.Workspace:WaitForChild("DinoEvent"):WaitForChild("DinoCraftingTable")
-            self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
-            task.wait(0.3)
-            for _, tool in ipairs(self.Backpack:GetChildren()) do
-                -- NOTE: The backpack item uses 'c' for its UUID, so we leave this unchanged.
-                if tool:IsA("Tool") and tool:GetAttribute("h") == "Dinosaur Egg" then
-                    tool.Parent = self.Character; task.wait(0.3)
-                    if tool:GetAttribute("c") then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 1, { ItemType = "PetEgg", ItemData = { UUID = tool:GetAttribute("c") } }) end
-                    tool.Parent = self.Backpack; break
-                end
-            end
-            for _, tool in ipairs(self.Backpack:GetChildren()) do
-                if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" then
-                    for _, t in ipairs(self.Character:GetChildren()) do if t:IsA("Tool") then t.Parent = self.Backpack end end
-                    tool.Parent = self.Character; task.wait(0.3)
-                    if tool:GetAttribute("c") then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 2, { ItemType = "Holdable", ItemData = { UUID = tool:GetAttribute("c") } }) end
-                    tool.Parent = self.Backpack; break
-                end
-            end
-            task.wait(0.3)
-            self.CraftingService:FireServer("Craft", DinoTable, "DinoEventWorkbench")
-            task.wait(1)
-            self.TeleportService:Teleport(game.PlaceId)
-        end)
-        if not success then warn("AutoCraft Error:", err, "-- Turning off."); self.isEnabled = false; self:UpdateButtonState(); self:SaveConfig() end
-    end
-
-    function FarmModule:RunMasterLoop()
-        while self.isEnabled do
-            self:UpdateButtonState("Finding Farm")
-            local myFarm = self:FindFarmByLocation()
-            if not myFarm then warn("Could not find farm, retrying..."); task.wait(5); continue end
-            local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
-            if not objectsFolder then warn("Could not find Objects_Physical folder, retrying..."); task.wait(5); continue end
-            
-            self:UpdateButtonState("Checking Eggs")
-            
-            local allEggs = {}
-            for _, obj in ipairs(objectsFolder:GetChildren()) do
-                -- CORRECTED: Filter using the correct UUID attribute
-                if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then
-                    table.insert(allEggs, obj)
-                end
-            end
-
-            for _, egg in ipairs(allEggs) do
-                local uuid = egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)
-                if not self.knownReadyEggs[uuid] and egg:GetAttribute("READY") == true then
-                    self.knownReadyEggs[uuid] = true
-                end
-            end
-
-            local readyCount, eggsToHatch = 0, {}
-            for _, egg in ipairs(allEggs) do
-                local uuid = egg:GetAttribute(self.EGG_UUID_ATTRIBUTE)
-                if self.knownReadyEggs[uuid] then
-                    readyCount = readyCount + 1
-                    table.insert(eggsToHatch, egg)
-                end
-            end
-            
-            print("--- Farm Status Update ---\nTotal Valid Eggs Found: " .. #allEggs .. "\nReady Eggs (from memory): " .. readyCount .. "\n--------------------------")
-            
-            if #allEggs >= 8 and readyCount == #allEggs then
-                self:UpdateButtonState("Hatching " .. #eggsToHatch)
-                for _, eggToHatch in ipairs(eggsToHatch) do
-                    if not self.isEnabled then break end
-                    local uuid = eggToHatch:GetAttribute(self.EGG_UUID_ATTRIBUTE)
-                    local prompt = eggToHatch:FindFirstChild("ProximityPrompt", true)
-                    if prompt then fireproximityprompt(prompt); if uuid then self.knownReadyEggs[uuid] = nil end; task.wait(0.2) end
-                end
-                task.wait(3); self:SaveConfig(); continue
-            end
-            
-            if #allEggs < 4 then
-                self:UpdateButtonState("Placing Eggs")
-                local toolInstance, location = self:FindPlacementTool()
-                if location then
-                    if location == "backpack" then
-                        if self.Character:FindFirstChildOfClass("Humanoid") then self.Character.Humanoid:EquipTool(toolInstance); task.wait(0.5) end
-                    end
-                    for i = 1, self.PLACEMENT_COUNT do
-                        if not self.isEnabled then break end
-                        self:PlaceOneEgg(); task.wait(0.5)
-                    end
-                    task.wait(1); self:SaveConfig(); continue
-                else
-                    warn("Cannot place eggs: Primal Egg tool not found.")
-                end
-            end
-            
-            self:SaveConfig()
-            self:PerformOneCraftCycle()
-            task.wait(5) 
-        end
-        self:SaveConfig()
-        self:UpdateButtonState()
-    end
-
-    function FarmModule:Toggle()
-        self.isEnabled = not self.isEnabled
-        self:UpdateButtonState()
-        if self.isEnabled then self:SaveConfig(); self.mainThread = task.spawn(function() self:RunMasterLoop() end)
-        else
-            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
-            self:SaveConfig()
-        end
-    end
-    
-    function FarmModule:ResetMemory()
-        print("Resetting saved egg memory...")
-        self.knownReadyEggs = {}
-        self:SaveConfig()
-        print("✅ Memory cleared. Please toggle the main button OFF and then ON to restart the cycle.")
-        if self.isEnabled then
-            self.isEnabled = false
-            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
-            self:UpdateButtonState()
-        end
-    end
-    
-    mainButton.MouseButton1Click:Connect(function() FarmModule:Toggle() end)
-    resetButton.MouseButton1Click:Connect(function() FarmModule:ResetMemory() end)
-
-    FarmModule:LoadConfig()
-    FarmModule:UpdateButtonState()
-    if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
-    end
-
-    print("Combined Auto-Farm & Crafter (Correct UUID) loaded.")
-end
+    local mainButton = Instance.new("TextButton", screenGui); mainButton.Name = "ToggleButton"; mainButton.TextSize = 20; mainButton.Font = Enum.Font.SourceSansBold; mainButton.TextColor3 = Color3.fromRGB
