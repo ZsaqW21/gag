@@ -36,7 +36,7 @@ do
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
     FarmModule.config = {
-        maxWeightToSell = 4,
+        maxWeightToSell = 3,
         sellablePets = {
             -- Primal Egg
             ["Parasaurolophus"] = false, ["Iguanodon"] = true, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
