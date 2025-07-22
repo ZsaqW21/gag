@@ -37,22 +37,15 @@ do
     FarmModule.placedPositions = {}
     FarmModule.config = {
         maxWeightToSell = 4,
-        targetEggCount = 3, -- CORRECTED: Default target egg count
+        targetEggCount = 3,
         sellablePets = {
-            -- Primal Egg
             ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
-            -- Dinosaur Egg
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
-            -- Zen Egg
             ["Shiba Inu"] = false, ["Nihonzaru"] = false, ["Tanuki"] = false, ["Tanchozuru"] = false, ["Kappa"] = false,
-            -- Paradise Egg
             ["Ostrich"] = false, ["Peacock"] = false, ["Capybara"] = false, ["Scarlet Macaw"] = false,
-            -- Bug Egg
             ["Caterpillar"] = false, ["Snail"] = false, ["Giant Ant"] = false, ["Praying Mantis"] = false,
-            -- Mythical Egg
             ["Grey Mouse"] = false, ["Brown Mouse"] = false, ["Squirrel"] = false, ["Red Giant Ant"] = false,
         },
-        -- CORRECTED: Default egg placement priority
         placementPriority = {
             "Primal Egg", "Dinosaur Egg", "Zen Egg", "Paradise Egg", "Bug Egg", "Mythical Egg"
         }
