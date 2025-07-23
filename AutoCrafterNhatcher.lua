@@ -18,7 +18,6 @@ do
     FarmModule.TeleportService = game:GetService("TeleportService")
     FarmModule.Workspace = game:GetService("Workspace")
 
-    -- CORRECTED: More robustly wait for the LocalPlayer and its components
     FarmModule.LocalPlayer = FarmModule.Players.LocalPlayer or FarmModule.Players.PlayerAdded:Wait()
     FarmModule.PlayerGui = FarmModule.LocalPlayer:WaitForChild("PlayerGui")
     FarmModule.Character = FarmModule.LocalPlayer.Character or FarmModule.LocalPlayer.CharacterAdded:Wait()
@@ -32,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v22_RobustInit.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v23_StableGUI.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -459,7 +458,7 @@ do
         local function redrawRecipeList()
             for _, v in ipairs(RecipeList:GetChildren()) do v:Destroy() end
             local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
-            for recipeName, _ in pairs(MyRecipeDatabase_v20) do
+            for recipeName, _ in pairs(FarmModule.UniqueRecipeDatabase) do
                 local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName
                 if recipeName == config.activeRecipe then recipeButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end
                 recipeButton.MouseButton1Click:Connect(function() config.activeRecipe = recipeName; redrawRecipeList() end)
