@@ -61,7 +61,8 @@ do
         ["Mythical Egg Pets"] = {"Grey Mouse", "Brown Mouse", "Squirrel", "Red Giant Ant"}
     }
     
-    FarmModule.Recipes = {
+    -- CORRECTED: Renamed to avoid potential name conflicts
+    FarmModule.RecipeDatabase = {
         ["Primal Egg"] = {
             Workbench = "DinoEventWorkbench",
             Ingredients = {
@@ -260,7 +261,7 @@ do
 
             self:UpdateButtonState("Crafting...")
             
-            local recipeData = self.Recipes[activeRecipeName]
+            local recipeData = self.RecipeDatabase[activeRecipeName] -- CORRECTED
             if not recipeData then
                 error("Active recipe '"..activeRecipeName.."' not found in database.")
             end
@@ -455,7 +456,7 @@ do
         local function redrawRecipeList()
             for _, v in ipairs(RecipeList:GetChildren()) do v:Destroy() end
             local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. self.config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
-            for recipeName, _ in pairs(self.Recipes) do
+            for recipeName, _ in pairs(self.RecipeDatabase) do
                 local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName
                 if recipeName == self.config.activeRecipe then recipeButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end
                 recipeButton.MouseButton1Click:Connect(function() self.config.activeRecipe = recipeName; redrawRecipeList() end)
