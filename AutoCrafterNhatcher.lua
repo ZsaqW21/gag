@@ -208,7 +208,7 @@ function M:Create()
     rst.MouseButton1Click:Connect(function() M:ResetConfig() end)
 end
 function M:Toggle()
-    self.enabled=not self.enabled; self:UpdateButtonState(); self:UpdateVis()
+    self.enabled=not self.enabled; self:UpdateState(); self:UpdateVis()
     if self.enabled then self:Save(); self.thread=task.spawn(function() self:Loop() end)
     else if self.thread then task.cancel(self.thread); self.thread=nil end; self:Save() end
 end
