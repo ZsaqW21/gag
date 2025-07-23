@@ -18,10 +18,11 @@ do
     FarmModule.TeleportService = game:GetService("TeleportService")
     FarmModule.Workspace = game:GetService("Workspace")
 
-    FarmModule.LocalPlayer = FarmModule.Players.LocalPlayer
+    -- CORRECTED: More robustly wait for the LocalPlayer and its components
+    FarmModule.LocalPlayer = FarmModule.Players.LocalPlayer or FarmModule.Players.PlayerAdded:Wait()
     FarmModule.PlayerGui = FarmModule.LocalPlayer:WaitForChild("PlayerGui")
-    FarmModule.Backpack = FarmModule.LocalPlayer:WaitForChild("Backpack")
     FarmModule.Character = FarmModule.LocalPlayer.Character or FarmModule.LocalPlayer.CharacterAdded:Wait()
+    FarmModule.Backpack = FarmModule.LocalPlayer:WaitForChild("Backpack")
 
     FarmModule.GameEvents = FarmModule.ReplicatedStorage:WaitForChild("GameEvents")
     FarmModule.CraftingService = FarmModule.GameEvents:WaitForChild("CraftingGlobalObjectService")
@@ -31,7 +32,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Failsafe.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Failsafe_Fixed.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -278,7 +279,6 @@ do
                     
                     local eggsAfterHatch = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(eggsAfterHatch, obj) end end
                     
-                    -- CORRECTED: If the number of eggs on the farm has not decreased, we are stuck.
                     if #eggsAfterHatch >= eggCountBeforeHatch then
                         warn("Hatching failed (pet inventory may be full). Switching to crafting loop.")
                         self.needsEggCheck = false
