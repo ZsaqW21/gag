@@ -261,7 +261,7 @@ do
 
             self:UpdateButtonState("Crafting...")
             
-            local recipeData = self.MyRecipeDatabase_v20[activeRecipeName] -- CORRECTED
+            local recipeData = self.MyRecipeDatabase_v20[activeRecipeName]
             if not recipeData then
                 error("Active recipe '"..activeRecipeName.."' not found in database.")
             end
