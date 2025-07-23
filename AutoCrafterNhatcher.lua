@@ -28,7 +28,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "CombinedFarmAndSeller_v25_WithHarvest.json"
+    local CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_WithHarvest.json"
     local isEnabled = false
     local mainThread = nil
     local placedPositions = {}
