@@ -2,7 +2,7 @@
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
-task.wait(3) -- Increased delay for safety
+task.wait(1) -- Increased delay for safety
 
 -- Isolate the entire script to prevent name conflicts
 do
