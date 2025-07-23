@@ -5,9 +5,9 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v14_Failsafe.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v15_PersistentFailsafe.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
-    maxWeight = 4, targetCount = 3,
+    maxWeight = 4, targetCount = 3, hatchFailsafeActive = false, -- Added failsafe flag
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
@@ -30,7 +30,7 @@ M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -39,7 +39,7 @@ function M:Load()
     if s and f then
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
-            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.targetCount=d.targetCount or self.cfg.targetCount
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
@@ -125,23 +125,30 @@ end
 function M:Loop()
     while self.enabled do
         if self.checkEggs then
-            self:UpdateState("Finding Farm"); local f=self:FindFarm(); if not f then task.wait(5); continue end
-            local of=f:FindFirstChild("Important",true) and f.Important:FindFirstChild("Objects_Physical") if not of then task.wait(5); continue end
-            self:UpdateState("Checking Eggs"); local all,rdy={},0; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(all,o) end end; for _,e in ipairs(all) do if e:GetAttribute("TimeToHatch")==0 then rdy=rdy+1 end end
-            if #all>=self.cfg.targetCount and rdy==#all then
-                self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.2) end; task.wait(3)
-                local after={}; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(after,o) end end
-                if #after>=b4 then warn("Hatch fail (inv full?). Crafting."); self.checkEggs=false end; continue
-            end
-            if #all<self.cfg.targetCount then
-                self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
-                if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
-                    if t then h:EquipTool(t); task.wait(0.5); self.placed={}; local num=self.cfg.targetCount-#all
-                        for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.5) end; task.wait(1); self:SellPets(); continue
+            if self.cfg.hatchFailsafeActive then
+                print("Hatching failsafe is active. Skipping egg checks.")
+                self.checkEggs = false
+            else
+                self:UpdateState("Finding Farm"); local f=self:FindFarm(); if not f then task.wait(5); continue end
+                local of=f:FindFirstChild("Important",true) and f.Important:FindFirstChild("Objects_Physical") if not of then task.wait(5); continue end
+                self:UpdateState("Checking Eggs"); local all,rdy={},0; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(all,o) end end; for _,e in ipairs(all) do if e:GetAttribute("TimeToHatch")==0 then rdy=rdy+1 end end
+                if #all>=self.cfg.targetCount and rdy==#all then
+                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.2) end; task.wait(3)
+                    local after={}; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(after,o) end end
+                    if #after>=b4 then
+                        warn("Hatch fail (inv full?). Activating failsafe."); self.checkEggs=false; self.cfg.hatchFailsafeActive=true; self:Save()
+                    end; continue
+                end
+                if #all<self.cfg.targetCount then
+                    self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
+                    if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
+                        if t then h:EquipTool(t); task.wait(0.5); self.placed={}; local num=self.cfg.targetCount-#all
+                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.5) end; task.wait(1); self:SellPets(); continue
+                        end
                     end
                 end
+                if #all>0 and rdy<#all then print("Eggs not ready. Fast crafting."); self.checkEggs=false end
             end
-            if #all>0 and rdy<#all then print("Eggs not ready. Fast crafting."); self.checkEggs=false end
         end
         self:Craft(); task.wait(3)
     end
