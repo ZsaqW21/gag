@@ -492,4 +492,22 @@ do
         print("✅ Config cleared. Please restart the script or toggle the main button.")
         if self.isEnabled then
             self.isEnabled = false
-            if self.mainThread then task.cancel(s
+            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
+            self:UpdateButtonState()
+            self:UpdateGUIVisibility()
+        end
+    end
+    
+    if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
+        FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy()
+    end
+    FarmModule:LoadConfig()
+    FarmModule:CreateGUI()
+    FarmModule:UpdateButtonState()
+    FarmModule:UpdateGUIVisibility()
+    if FarmModule.isEnabled then
+        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
+    end
+
+    print("Combined Auto-Farm & Crafter (Final) loaded.")
+end
