@@ -1,465 +1,228 @@
--- Wait for the game to fully load
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-task.wait(1) -- Add a small extra delay for safety
-
--- Isolate the entire script to prevent name conflicts
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
 do
-    -- Create a self-contained module to hold all functions and state
-    local FarmModule = {}
+local M = {}
+M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
+M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
+M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-    --================================================================================--
-    --                         Services & Player Setup
-    --================================================================================--
-    FarmModule.HttpService = game:GetService("HttpService")
-    FarmModule.Players = game:GetService("Players")
-    FarmModule.ReplicatedStorage = game:GetService("ReplicatedStorage")
-    FarmModule.TeleportService = game:GetService("TeleportService")
-    FarmModule.Workspace = game:GetService("Workspace")
+M.CFG_FILE = "CombinedFarmAndSeller_v14_Short.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.cfg = {
+    maxWeight = 4, targetCount = 3,
+    sell = {
+        ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
+        ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
+        ["Tanuki"]=false,["Tanchozuru"]=false,["Kappa"]=false,["Ostrich"]=false,["Peacock"]=false,["Capybara"]=false,
+        ["Scarlet Macaw"]=false,["Caterpillar"]=false,["Snail"]=false,["Giant Ant"]=false,["Praying Mantis"]=false,
+        ["Grey Mouse"]=false,["Brown Mouse"]=false,["Squirrel"]=false,["Red Giant Ant"]=false,
+    },
+    priority = {"Primal Egg","Dinosaur Egg","Zen Egg","Paradise Egg","Bug Egg","Mythical Egg"}
+}
+M.petCats = {
+    ["Primal"]={"Parasaurolophus","Iguanodon","Pachycephalosaurus","Dilophosaurus","Ankylosaurus"},
+    ["Dino"]={"Raptor","Triceratops","Stegosaurus","Pterodactyl"},
+    ["Zen"]={"Shiba Inu","Nihonzaru","Tanuki","Tanchozuru","Kappa"},
+    ["Paradise"]={"Ostrich","Peacock","Capybara","Scarlet Macaw"},
+    ["Bug"]={"Caterpillar","Snail","Giant Ant","Praying Mantis"},
+    ["Mythical"]={"Grey Mouse","Brown Mouse","Squirrel","Red Giant Ant"}
+}
+M.EGG_UUID = "OBJECT_UUID"; M.PLACE_ATTR = "h"; M.MIN_DIST = 5
+M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
-    -- CORRECTED: More robustly wait for the LocalPlayer and its components
-    FarmModule.LocalPlayer = FarmModule.Players.LocalPlayer or FarmModule.Players.PlayerAdded:Wait()
-    FarmModule.PlayerGui = FarmModule.LocalPlayer:WaitForChild("PlayerGui")
-    FarmModule.Character = FarmModule.LocalPlayer.Character or FarmModule.LocalPlayer.CharacterAdded:Wait()
-    FarmModule.Backpack = FarmModule.LocalPlayer:WaitForChild("Backpack")
-
-    FarmModule.GameEvents = FarmModule.ReplicatedStorage:WaitForChild("GameEvents")
-    FarmModule.CraftingService = FarmModule.GameEvents:WaitForChild("CraftingGlobalObjectService")
-    FarmModule.PetEggService = FarmModule.GameEvents:WaitForChild("PetEggService")
-    FarmModule.SellPetRemote = FarmModule.GameEvents:WaitForChild("SellPet_RE")
-
-    --================================================================================--
-    --                         Configuration & State
-    --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Failsafe_Fixed.json"
-    FarmModule.isEnabled = false
-    FarmModule.mainThread = nil
-    FarmModule.placedPositions = {}
-    FarmModule.needsEggCheck = true
-    FarmModule.config = {
-        maxWeightToSell = 4,
-        targetEggCount = 3,
-        sellablePets = {
-            ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
-            ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
-            ["Shiba Inu"] = false, ["Nihonzaru"] = false, ["Tanuki"] = false, ["Tanchozuru"] = false, ["Kappa"] = false,
-            ["Ostrich"] = false, ["Peacock"] = false, ["Capybara"] = false, ["Scarlet Macaw"] = false,
-            ["Caterpillar"] = false, ["Snail"] = false, ["Giant Ant"] = false, ["Praying Mantis"] = false,
-            ["Grey Mouse"] = false, ["Brown Mouse"] = false, ["Squirrel"] = false, ["Red Giant Ant"] = false,
-        },
-        placementPriority = {
-            "Primal Egg", "Dinosaur Egg", "Zen Egg", "Paradise Egg", "Bug Egg", "Mythical Egg"
-        }
-    }
-    
-    FarmModule.petCategories = {
-        ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
-        ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
-        ["Zen Egg Pets"] = {"Shiba Inu", "Nihonzaru", "Tanuki", "Tanchozuru", "Kappa"},
-        ["Paradise Egg Pets"] = {"Ostrich", "Peacock", "Capybara", "Scarlet Macaw"},
-        ["Bug Egg Pets"] = {"Caterpillar", "Snail", "Giant Ant", "Praying Mantis"},
-        ["Mythical Egg Pets"] = {"Grey Mouse", "Brown Mouse", "Squirrel", "Red Giant Ant"}
-    }
-
-    FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
-    FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
-    FarmModule.MINIMUM_DISTANCE = 5
-    FarmModule.corner1 = Vector3.new(-2.5596256256103516, 0.13552704453468323, 47.833213806152344)
-    FarmModule.corner2 = Vector3.new(26.806381225585938, 0.13552704453468323, 106.00519561767578)
-
-    --================================================================================--
-    --                         Configuration Save/Load
-    --================================================================================--
-    function FarmModule:SaveConfig()
-        if typeof(writefile) ~= "function" then return end
-        local configToSave = {
-            enabled = self.isEnabled,
-            maxWeightToSell = self.config.maxWeightToSell,
-            sellablePets = self.config.sellablePets,
-            placementPriority = self.config.placementPriority,
-            targetEggCount = self.config.targetEggCount
-        }
-        pcall(function() writefile(self.CONFIG_FILE_NAME, self.HttpService:JSONEncode(configToSave)) end)
-    end
-
-    function FarmModule:LoadConfig()
-        if typeof(readfile) ~= "function" then return end
-        local success, fileData = pcall(readfile, self.CONFIG_FILE_NAME)
-        if success and fileData then
-            local success2, decodedData = pcall(self.HttpService.JSONDecode, self.HttpService, fileData)
-            if success2 and typeof(decodedData) == "table" then
-                self.isEnabled = decodedData.enabled or false
-                self.config.maxWeightToSell = decodedData.maxWeightToSell or self.config.maxWeightToSell
-                self.config.targetEggCount = decodedData.targetEggCount or self.config.targetEggCount
-                if typeof(decodedData.sellablePets) == "table" then
-                    for petName, _ in pairs(self.config.sellablePets) do
-                        if decodedData.sellablePets[petName] ~= nil then
-                            self.config.sellablePets[petName] = decodedData.sellablePets[petName]
-                        end
-                    end
-                end
-                if typeof(decodedData.placementPriority) == "table" then
-                    self.config.placementPriority = decodedData.placementPriority
-                end
-            end
+function M:Save()
+    if typeof(writefile)~="function" then return end
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount}
+    pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
+end
+function M:Load()
+    if typeof(readfile)~="function" then return end
+    local s, f = pcall(readfile, self.CFG_FILE)
+    if s and f then
+        local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
+        if s2 and typeof(d)=="table" then
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.targetCount=d.targetCount or self.cfg.targetCount
+            if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
+            if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
     end
+end
 
-    --================================================================================--
-    --                         Helper Functions
-    --================================================================================--
-    function FarmModule:FindFarmByLocation()
-        local rootPart = self.Character:WaitForChild("HumanoidRootPart")
-        local farmsFolder = self.Workspace:WaitForChild("Farm")
-        local closestFarm, minDistance = nil, math.huge
-        for _, farmPlot in ipairs(farmsFolder:GetChildren()) do
-            local centerPoint = farmPlot:FindFirstChild("Center_Point")
-            if centerPoint then
-                local d = (rootPart.Position - centerPoint.Position).Magnitude
-                if d < minDistance then minDistance = d; closestFarm = farmPlot end
-            end
-        end
-        return closestFarm
+function M:FindFarm()
+    local rp=self.Character:WaitForChild("HumanoidRootPart") if not rp then return nil end
+    local ff,cf,md=self.Workspace:WaitForChild("Farm"),nil,math.huge
+    for _,p in ipairs(ff:GetChildren()) do
+        local cp=p:FindFirstChild("Center_Point")
+        if cp then local d=(rp.Position-cp.Position).Magnitude; if d<md then md=d; cf=p end end
     end
+    return cf
+end
+function M:FindTool()
+    for _,n in ipairs(self.cfg.priority) do
+        for _,i in ipairs(self.Backpack:GetChildren()) do if i:IsA("Tool") and i:GetAttribute(self.PLACE_ATTR)==n then return i end end
+    end
+    return nil
+end
+function M:PlaceEgg()
+    local r,iv,a=nil,false,0
+    repeat
+        r=Vector3.new(math.random()*(math.max(self.c1.X,self.c2.X)-math.min(self.c1.X,self.c2.X))+math.min(self.c1.X,self.c2.X),self.c1.Y,math.random()*(math.max(self.c1.Z,self.c2.Z)-math.min(self.c1.Z,self.c2.Z))+math.min(self.c1.Z,self.c2.Z))
+        iv=true; for _,p in ipairs(self.placed) do if (r-p).Magnitude<self.MIN_DIST then iv=false; break end end; a=a+1
+    until iv or a>=100
+    if iv then self.PetEggService:FireServer("CreateEgg",r); table.insert(self.placed,r) end
+end
+function M:HatchEgg(e)
+    local p=e:FindFirstChild("ProximityPrompt",true) if not p then return end
+    local d,los=p.MaxActivationDistance,p.RequiresLineOfSight; p.MaxActivationDistance=math.huge; p.RequiresLineOfSight=false
+    fireproximityprompt(p); p.MaxActivationDistance=d; p.RequiresLineOfSight=los
+end
 
-    function FarmModule:FindPlacementTool()
-        for _, eggName in ipairs(self.config.placementPriority) do
-            for _, item in ipairs(self.Backpack:GetChildren()) do
-                if item:IsA("Tool") and item:GetAttribute(self.PLACEMENT_ATTRIBUTE_NAME) == eggName then
-                    print("Found priority egg to place: " .. eggName)
-                    return item
-                end
-            end
-        end
-        warn("Could not find any of the prioritized placement eggs in the backpack.")
-        return nil
-    end
-
-    function FarmModule:PlaceOneEgg()
-        local r, iv, a = nil, false, 0
-        repeat
-            local minX = math.min(self.corner1.X, self.corner2.X); local maxX = math.max(self.corner1.X, self.corner2.X)
-            local minZ = math.min(self.corner1.Z, self.corner2.Z); local maxZ = math.max(self.corner1.Z, self.corner2.Z)
-            r = Vector3.new(math.random() * (maxX - minX) + minX, self.corner1.Y, math.random() * (maxZ - minZ) + minZ)
-            iv = true
-            for _, p in ipairs(self.placedPositions) do if (r - p).Magnitude < self.MINIMUM_DISTANCE then iv = false; break end end
-            a = a + 1
-        until iv or a >= 100
-        if iv then self.PetEggService:FireServer("CreateEgg", r); table.insert(self.placedPositions, r) end
-    end
-    
-    function FarmModule:HatchOneEgg(eggModel)
-        local prompt = eggModel:FindFirstChild("ProximityPrompt", true)
-        if not prompt then return end
-        local originalDistance = prompt.MaxActivationDistance
-        local originalLineOfSight = prompt.RequiresLineOfSight
-        prompt.MaxActivationDistance = math.huge
-        prompt.RequiresLineOfSight = false
-        fireproximityprompt(prompt)
-        prompt.MaxActivationDistance = originalDistance
-        prompt.RequiresLineOfSight = originalLineOfSight
-    end
-
-    --================================================================================--
-    --                         GUI & Master Loop
-    --================================================================================--
-    local screenGui, mainButton, resetButton, PetSettingsButton
-
-    function FarmModule:UpdateButtonState(statusText)
-        if mainButton then
-            if self.isEnabled then
-                mainButton.Text = "AutoFarm: " .. (statusText or "ON"); mainButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70)
-            else
-                mainButton.Text = "AutoFarm: OFF"; mainButton.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
-            end
-        end
-    end
-    
-    function FarmModule:UpdateGUIVisibility()
-        if PetSettingsButton then
-            PetSettingsButton.Visible = not self.isEnabled
-        end
-    end
-
-    function FarmModule:RunAutoSeller()
-        self:UpdateButtonState("Selling Pets")
-        local totalPetsSold = 0
-        while true do
-            local petSoldThisPass = false
-            for _, item in ipairs(self.Backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    for petName, shouldSell in pairs(self.config.sellablePets) do
-                        if shouldSell and item.Name:find(petName, 1, true) then
-                            local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
-                            if weightString then
-                                local weight = tonumber(weightString)
-                                if weight < self.config.maxWeightToSell then
-                                    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-                                    if humanoid then
-                                        humanoid:EquipTool(item)
-                                        task.wait(0.5)
-                                        if item.Parent == self.Character then
-                                            self.SellPetRemote:FireServer(item)
-                                            totalPetsSold = totalPetsSold + 1
-                                            petSoldThisPass = true
-                                            task.wait(1)
-                                            break
-                                        else
-                                            if item.Parent ~= self.Backpack then item.Parent = self.Backpack end
-                                        end
-                                    end
+local gui,btn,rst,petBtn
+function M:UpdateState(s)
+    if btn then if self.enabled then btn.Text="AutoFarm: "..(s or "ON"); btn.BackgroundColor3=Color3.fromRGB(20,140,70) else btn.Text="AutoFarm: OFF"; btn.BackgroundColor3=Color3.fromRGB(190,40,40) end end
+end
+function M:UpdateVis() if petBtn then petBtn.Visible=not self.enabled end end
+function M:SellPets()
+    self:UpdateState("Selling Pets"); local sold=0
+    while true do
+        local soldPass=false
+        for _,i in ipairs(self.Backpack:GetChildren()) do
+            if i:IsA("Tool") then
+                for n,s in pairs(self.cfg.sell) do
+                    if s and i.Name:find(n,1,true) then
+                        local wS=i.Name:match("%[(%d+%.?%d*)%s*KG%]")
+                        if wS then
+                            local w=tonumber(wS)
+                            if w<self.cfg.maxWeight then
+                                local h=self.Character:FindFirstChildOfClass("Humanoid")
+                                if h then h:EquipTool(i); task.wait(0.5)
+                                    if i.Parent==self.Character then self.SellPetRemote:FireServer(i); sold=sold+1; soldPass=true; task.wait(1); break
+                                    else if i.Parent~=self.Backpack then i.Parent=self.Backpack end end
                                 end
                             end
                         end
                     end
                 end
-                if petSoldThisPass then break end
             end
-            if not petSoldThisPass then break end
+            if soldPass then break end
         end
-        print("Auto-sell finished. Sold " .. totalPetsSold .. " pet(s).")
+        if not soldPass then break end
     end
-
-    function FarmModule:PerformOneCraftCycle()
-        local success, err = pcall(function()
-            self:UpdateButtonState("Crafting...")
-            
-            local DinoEvent = self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
-            if DinoEvent and DinoEvent:IsDescendantOf(self.ReplicatedStorage) then DinoEvent.Parent = self.Workspace end
-            
-            local DinoTable = self.Workspace:WaitForChild("DinoEvent", 5):WaitForChild("DinoCraftingTable", 5)
-            if not DinoTable then error("Could not find DinoCraftingTable. Aborting craft cycle.") end
-
-            self.CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
-            task.wait(0.3)
-            for _, tool in ipairs(self.Backpack:GetChildren()) do
-                if tool:IsA("Tool") and tool:GetAttribute("h") == "Dinosaur Egg" then
-                    tool.Parent = self.Character; task.wait(0.3)
-                    if tool:GetAttribute("c") then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 1, { ItemType = "PetEgg", ItemData = { UUID = tool:GetAttribute("c") } }) end
-                    tool.Parent = self.Backpack; break
-                end
+    print("Sold "..sold.." pet(s).")
+end
+function M:Craft()
+    local s,e=pcall(function()
+        self:UpdateState("Crafting")
+        local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
+        if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
+        local dt=self.Workspace:WaitForChild("DinoEvent",5):WaitForChild("DinoCraftingTable",5)
+        if not dt then error("No crafting table") end
+        self.CraftingService:FireServer("SetRecipe",dt,"DinoEventWorkbench","Primal Egg"); task.wait(0.3)
+        for _,t in ipairs(self.Backpack:GetChildren()) do if t:IsA("Tool") and t:GetAttribute("h")=="Dinosaur Egg" then t.Parent=self.Character; task.wait(0.3); if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end; t.Parent=self.Backpack; break end end
+        for _,t in ipairs(self.Backpack:GetChildren()) do if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" then for _,c in ipairs(self.Character:GetChildren()) do if c:IsA("Tool") then c.Parent=self.Backpack end end; t.Parent=self.Character; task.wait(0.3); if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",2,{ItemType="Holdable",ItemData={UUID=t:GetAttribute("c")}}) end; t.Parent=self.Backpack; break end end
+        task.wait(0.3); self.CraftingService:FireServer("Craft",dt,"DinoEventWorkbench"); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
+    end)
+    if not s then warn("Craft Error:",e,"-- Off."); self.enabled=false; self:UpdateState(); self:Save() end
+end
+function M:Loop()
+    while self.enabled do
+        if self.checkEggs then
+            self:UpdateState("Finding Farm"); local f=self:FindFarm(); if not f then task.wait(5); continue end
+            local of=f:FindFirstChild("Important",true) and f.Important:FindFirstChild("Objects_Physical") if not of then task.wait(5); continue end
+            self:UpdateState("Checking Eggs"); local all,rdy={},0; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(all,o) end end; for _,e in ipairs(all) do if e:GetAttribute("TimeToHatch")==0 then rdy=rdy+1 end end
+            if #all>=self.cfg.targetCount and rdy==#all then
+                self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.2) end; task.wait(3)
+                local after={}; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(after,o) end end
+                if #after>=b4 then warn("Hatch fail (inv full?). Crafting."); self.checkEggs=false end; continue
             end
-            for _, tool in ipairs(self.Backpack:GetChildren()) do
-                if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" then
-                    for _, t in ipairs(self.Character:GetChildren()) do if t:IsA("Tool") then t.Parent = self.Backpack end end
-                    tool.Parent = self.Character; task.wait(0.3)
-                    if tool:GetAttribute("c") then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 2, { ItemType = "Holdable", ItemData = { UUID = tool:GetAttribute("c") } }) end
-                    tool.Parent = self.Backpack; break
-                end
-            end
-            task.wait(0.3); self.CraftingService:FireServer("Craft", DinoTable, "DinoEventWorkbench"); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
-        end)
-        if not success then warn("AutoCraft Error:", err, "-- Turning off."); self.isEnabled = false; self:UpdateButtonState(); self:SaveConfig() end
-    end
-
-    function FarmModule:RunMasterLoop()
-        while self.isEnabled do
-            if self.needsEggCheck then
-                self:UpdateButtonState("Finding Farm")
-                local myFarm = self:FindFarmByLocation()
-                if not myFarm then task.wait(5); continue end
-                local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
-                if not objectsFolder then task.wait(5); continue end
-                
-                self:UpdateButtonState("Checking Eggs")
-                local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
-                local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
-                
-                if #allEggs >= 8 and readyCount == #allEggs then
-                    self:UpdateButtonState("Hatching " .. readyCount)
-                    local eggCountBeforeHatch = #allEggs
-                    
-                    for _, eggToHatch in ipairs(allEggs) do
-                        if not self.isEnabled then break end
-                        self:HatchOneEgg(eggToHatch); task.wait(0.2)
-                    end
-                    
-                    task.wait(3) -- Give the game time to remove the hatched eggs
-                    
-                    local eggsAfterHatch = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(eggsAfterHatch, obj) end end
-                    
-                    if #eggsAfterHatch >= eggCountBeforeHatch then
-                        warn("Hatching failed (pet inventory may be full). Switching to crafting loop.")
-                        self.needsEggCheck = false
-                    end
-                    
-                    continue
-                end
-                
-                if #allEggs < self.config.targetEggCount then
-                    self:UpdateButtonState("Placing Eggs")
-                    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid:UnequipTools(); task.wait(0.2)
-                        local toolInstance = self:FindPlacementTool()
-                        if toolInstance then
-                            humanoid:EquipTool(toolInstance); task.wait(0.5)
-                            self.placedPositions = {}
-                            local eggsToPlace = self.config.targetEggCount - #allEggs
-                            for i = 1, eggsToPlace do
-                                if not self.isEnabled then break end
-                                self:PlaceOneEgg(); task.wait(0.5)
-                            end
-                            task.wait(1)
-                            self:RunAutoSeller()
-                            continue
-                        end
+            if #all<self.cfg.targetCount then
+                self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
+                if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
+                    if t then h:EquipTool(t); task.wait(0.5); self.placed={}; local num=self.cfg.targetCount-#all
+                        for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.5) end; task.wait(1); self:SellPets(); continue
                     end
                 end
-
-                if #allEggs > 0 and readyCount < #allEggs then
-                    print("Eggs are not ready. Entering fast crafting loop.")
-                    self.needsEggCheck = false
-                end
             end
-            
-            self:PerformOneCraftCycle()
-            task.wait(3)
+            if #all>0 and rdy<#all then print("Eggs not ready. Fast crafting."); self.checkEggs=false end
         end
-        self:SaveConfig()
-        self:UpdateButtonState()
+        self:Craft(); task.wait(3)
     end
-
-    function FarmModule:CreateGUI()
-        if self.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
-            self.PlayerGui.CombinedFarmCraftGui:Destroy()
-        end
-        
-        screenGui = Instance.new("ScreenGui", self.PlayerGui); screenGui.Name = "CombinedFarmCraftGui"; screenGui.ResetOnSpawn = false
-        mainButton = Instance.new("TextButton", screenGui); mainButton.Name = "ToggleButton"; mainButton.TextSize = 20; mainButton.Font = Enum.Font.SourceSansBold; mainButton.TextColor3 = Color3.fromRGB(255, 255, 255); mainButton.Size = UDim2.new(0, 180, 0, 50); mainButton.Position = UDim2.new(1, -200, 0, 10)
-        local corner = Instance.new("UICorner", mainButton); corner.CornerRadius = UDim.new(0, 8)
-        resetButton = Instance.new("TextButton", screenGui); resetButton.Name = "ResetButton"; resetButton.Text = "Reset Config"; resetButton.TextSize = 14; resetButton.Font = Enum.Font.SourceSansBold; resetButton.TextColor3 = Color3.fromRGB(255, 255, 255); resetButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40); resetButton.Size = UDim2.new(0, 100, 0, 30); resetButton.Position = UDim2.new(1, -310, 0, 20)
-        local corner2 = Instance.new("UICorner", resetButton); corner2.CornerRadius = UDim.new(0, 6)
-        
-        PetSettingsButton = Instance.new("TextButton", screenGui)
-        PetSettingsButton.Name = "PetSettingsButton"; PetSettingsButton.Text = "Pet Sell Settings"; PetSettingsButton.TextSize = 14; PetSettingsButton.Font = Enum.Font.SourceSansBold; PetSettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255); PetSettingsButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); PetSettingsButton.Size = UDim2.new(0, 120, 0, 40); PetSettingsButton.Position = UDim2.new(1, -440, 0, 15)
-        local corner_pet = Instance.new("UICorner", PetSettingsButton); corner_pet.CornerRadius = UDim.new(0, 6)
-        
-        local SettingsFrame = Instance.new("Frame", screenGui)
-        SettingsFrame.Size = UDim2.new(0, 220, 0, 220); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -110)
-        SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
-        SettingsFrame.Visible = false
-        local corner_settings = Instance.new("UICorner", SettingsFrame); corner_settings.CornerRadius = UDim.new(0, 8)
-
-        local SettingsTitle = Instance.new("TextLabel", SettingsFrame)
-        SettingsTitle.Size = UDim2.new(1, 0, 0, 30); SettingsTitle.Text = "Main Settings"
-        SettingsTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255); SettingsTitle.Font = Enum.Font.SourceSansBold; SettingsTitle.TextSize = 16
-
-        local listLayout = Instance.new("UIListLayout", SettingsFrame); listLayout.Padding = UDim.new(0, 10); listLayout.SortOrder = Enum.SortOrder.LayoutOrder; listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        
-        local MaxWeightLabel = Instance.new("TextLabel", SettingsFrame); MaxWeightLabel.Size = UDim2.new(0.9, 0, 0, 20); MaxWeightLabel.Text = "Sell pets UNDER this KG:"; MaxWeightLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); MaxWeightLabel.TextColor3 = Color3.fromRGB(220, 220, 220); MaxWeightLabel.Font = Enum.Font.SourceSans; MaxWeightLabel.TextSize = 14; MaxWeightLabel.LayoutOrder = 1; MaxWeightLabel.TextXAlignment = Enum.TextXAlignment.Left
-        local MaxWeightInput = Instance.new("TextBox", SettingsFrame); MaxWeightInput.Size = UDim2.new(0.9, 0, 0, 30); MaxWeightInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); MaxWeightInput.TextColor3 = Color3.fromRGB(255, 255, 255); MaxWeightInput.Font = Enum.Font.SourceSansBold; MaxWeightInput.TextSize = 14; MaxWeightInput.Text = tostring(self.config.maxWeightToSell); MaxWeightInput.LayoutOrder = 2
-        
-        local SelectPetsButton = Instance.new("TextButton", SettingsFrame); SelectPetsButton.Size = UDim2.new(0.9, 0, 0, 35); SelectPetsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); SelectPetsButton.TextColor3 = Color3.fromRGB(255, 255, 255); SelectPetsButton.Font = Enum.Font.SourceSansBold; SelectPetsButton.Text = "Select Pets to Sell"; SelectPetsButton.TextSize = 16; SelectPetsButton.LayoutOrder = 3
-        local corner4 = Instance.new("UICorner", SelectPetsButton); corner4.CornerRadius = UDim.new(0, 6)
-
-        local EggSettingsButton = Instance.new("TextButton", SettingsFrame); EggSettingsButton.Size = UDim2.new(0.9, 0, 0, 35); EggSettingsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); EggSettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSettingsButton.Font = Enum.Font.SourceSansBold; EggSettingsButton.Text = "Egg Placement Priority"; EggSettingsButton.TextSize = 16; EggSettingsButton.LayoutOrder = 4
-        local corner_egg = Instance.new("UICorner", EggSettingsButton); corner_egg.CornerRadius = UDim.new(0, 6)
-
-        local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
-        local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
-
-        local PetCategoryMenu = Instance.new("Frame", screenGui); PetCategoryMenu.Size = UDim2.new(0, 200, 0, 250); PetCategoryMenu.Position = UDim2.new(0.5, -100, 0.5, -125); PetCategoryMenu.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryMenu.BorderColor3 = Color3.fromRGB(150, 150, 150); PetCategoryMenu.BorderSizePixel = 2; PetCategoryMenu.Visible = false
-        local PetCategoryTitle = Instance.new("TextLabel", PetCategoryMenu); PetCategoryTitle.Size = UDim2.new(1, 0, 0, 30); PetCategoryTitle.Text = "Pet Categories"; PetCategoryTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); PetCategoryTitle.TextColor3 = Color3.fromRGB(255, 255, 255); PetCategoryTitle.Font = Enum.Font.SourceSansBold; PetCategoryTitle.TextSize = 16
-        local PetCategoryScroll = Instance.new("ScrollingFrame", PetCategoryMenu); PetCategoryScroll.Size = UDim2.new(1, 0, 1, -75); PetCategoryScroll.Position = UDim2.new(0, 0, 0, 30); PetCategoryScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryScroll.BorderSizePixel = 0; PetCategoryScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); PetCategoryScroll.ScrollBarThickness = 6
-        local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        
-        local subMenus = {}
-        for categoryName, petList in pairs(self.petCategories) do
-            local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
-            local title = Instance.new("TextLabel", frame); title.Size = UDim2.new(1, 0, 0, 30); title.Text = categoryName; title.BackgroundColor3 = Color3.fromRGB(70, 70, 70); title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.SourceSansBold; title.TextSize = 16
-            local scroll = Instance.new("ScrollingFrame", frame); scroll.Size = UDim2.new(1, 0, 1, -75); scroll.Position = UDim2.new(0, 0, 0, 30); scroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); scroll.BorderSizePixel = 0; scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); scroll.ScrollBarThickness = 6
-            local layout = Instance.new("UIListLayout", scroll); layout.Padding = UDim.new(0, 5); layout.SortOrder = Enum.SortOrder.LayoutOrder; layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-            local contentH = 5
-            for _, petName in ipairs(petList) do
-                local btn = Instance.new("TextButton", scroll); btn.Size = UDim2.new(0.9, 0, 0, 28); btn.Font = Enum.Font.SourceSansBold; btn.TextSize = 14
-                local function update() if self.config.sellablePets[petName] then btn.Text = petName .. ": ON"; btn.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else btn.Text = petName .. ": OFF"; btn.BackgroundColor3 = Color3.fromRGB(190, 40, 40) end end
-                btn.MouseButton1Click:Connect(function() self.config.sellablePets[petName] = not self.config.sellablePets[petName]; update() end)
-                update(); contentH = contentH + 33
-            end
-            scroll.CanvasSize = UDim2.new(0, 0, 0, contentH)
-            local backBtn = Instance.new("TextButton", frame); backBtn.Size = UDim2.new(0.9, 0, 0, 35); backBtn.Position = UDim2.new(0.05, 0, 1, -40); backBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); backBtn.TextColor3 = Color3.fromRGB(255, 255, 255); backBtn.Font = Enum.Font.SourceSansBold; backBtn.Text = "Back"; backBtn.TextSize = 16
-            backBtn.MouseButton1Click:Connect(function() frame.Visible = false; PetCategoryMenu.Visible = true end)
-            subMenus[categoryName] = frame
-        end
-        
-        for categoryName, _ in pairs(self.petCategories) do
-            local catButton = Instance.new("TextButton", PetCategoryScroll)
-            catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-            catButton.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; subMenus[categoryName].Visible = true end)
-        end
-        local catBackBtn = Instance.new("TextButton", PetCategoryMenu); catBackBtn.Size = UDim2.new(0.9, 0, 0, 35); catBackBtn.Position = UDim2.new(0.05, 0, 1, -40); catBackBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100); catBackBtn.TextColor3 = Color3.fromRGB(255, 255, 255); catBackBtn.Font = Enum.Font.SourceSansBold; catBackBtn.Text = "Back"; catBackBtn.TextSize = 16
-        catBackBtn.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; SettingsFrame.Visible = true end)
-
-        local EggFrame = Instance.new("Frame", screenGui); EggFrame.Size = UDim2.new(0, 220, 0, 320); EggFrame.Position = UDim2.new(0.5, -110, 0.5, -160); EggFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); EggFrame.BorderSizePixel = 2; EggFrame.Visible = false
-        local EggTitle = Instance.new("TextLabel", EggFrame); EggTitle.Size = UDim2.new(1, 0, 0, 30); EggTitle.Text = "Egg Placement Priority"; EggTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); EggTitle.TextColor3 = Color3.fromRGB(255, 255, 255); EggTitle.Font = Enum.Font.SourceSansBold; EggTitle.TextSize = 16
-        
-        local TargetCountLabel = Instance.new("TextLabel", EggFrame); TargetCountLabel.Size = UDim2.new(0.9, 0, 0, 20); TargetCountLabel.Position = UDim2.new(0.05, 0, 0, 35); TargetCountLabel.Text = "Target Egg Count:"; TargetCountLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); TargetCountLabel.TextColor3 = Color3.fromRGB(220, 220, 220); TargetCountLabel.Font = Enum.Font.SourceSans; TargetCountLabel.TextSize = 14; TargetCountLabel.TextXAlignment = Enum.TextXAlignment.Left
-        local TargetCountInput = Instance.new("TextBox", EggFrame); TargetCountInput.Size = UDim2.new(0.9, 0, 0, 30); TargetCountInput.Position = UDim2.new(0.05, 0, 0, 55); TargetCountInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); TargetCountInput.TextColor3 = Color3.fromRGB(255, 255, 255); TargetCountInput.Font = Enum.Font.SourceSansBold; TargetCountInput.TextSize = 14; TargetCountInput.Text = tostring(config.targetEggCount);
-        
-        local EggListScroll = Instance.new("ScrollingFrame", EggFrame); EggListScroll.Size = UDim2.new(1, 0, 1, -130); EggListScroll.Position = UDim2.new(0, 0, 0, 90); EggListScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggListScroll.BorderSizePixel = 0; EggListScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); EggListScroll.ScrollBarThickness = 6
-        local eggListLayout = Instance.new("UIListLayout", EggListScroll); eggListLayout.Padding = UDim.new(0, 5); eggListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        
-        local function redrawEggPriorityList()
-            for _, v in ipairs(EggListScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
-            local eggContentHeight = 5
-            for i, eggName in ipairs(config.placementPriority) do
-                local itemFrame = Instance.new("Frame", EggListScroll); itemFrame.Size = UDim2.new(0.9, 0, 0, 30); itemFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                local eggLabel = Instance.new("TextLabel", itemFrame); eggLabel.Size = UDim2.new(1, -60, 1, 0); eggLabel.Text = i .. ". " .. eggName; eggLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); eggLabel.TextColor3 = Color3.fromRGB(255, 255, 255); eggLabel.Font = Enum.Font.SourceSans; eggLabel.TextSize = 14; eggLabel.TextXAlignment = Enum.TextXAlignment.Left
-                local upButton = Instance.new("TextButton", itemFrame); upButton.Size = UDim2.new(0, 25, 1, 0); upButton.Position = UDim2.new(1, -55, 0, 0); upButton.Text = "▲"; upButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-                local downButton = Instance.new("TextButton", itemFrame); downButton.Size = UDim2.new(0, 25, 1, 0); downButton.Position = UDim2.new(1, -25, 0, 0); downButton.Text = "▼"; downButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-                upButton.MouseButton1Click:Connect(function() if i > 1 then local temp = config.placementPriority[i]; config.placementPriority[i] = config.placementPriority[i-1]; config.placementPriority[i-1] = temp; redrawEggPriorityList() end end)
-                downButton.MouseButton1Click:Connect(function() if i < #config.placementPriority then local temp = config.placementPriority[i]; config.placementPriority[i] = config.placementPriority[i+1]; config.placementPriority[i+1] = temp; redrawEggPriorityList() end end)
-                eggContentHeight = eggContentHeight + 35
-            end
-            EggListScroll.CanvasSize = UDim2.new(0, 0, 0, eggContentHeight)
-        end
-        local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
-        EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then config.targetEggCount = newCount end; SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; needsEggCheck = true end)
-
-        PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
-        SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then config.maxWeightToSell = newWeight end; SaveConfig(); SettingsFrame.Visible = false; RunAutoSeller() end)
-        SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
-        EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
-        
-        mainButton.MouseButton1Click:Connect(function() Toggle() end)
-        resetButton.MouseButton1Click:Connect(function() ResetConfig() end)
+    self:Save(); self:UpdateState()
+end
+function M:Create()
+    if self.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then self.PlayerGui.CombinedFarmCraftGui:Destroy() end
+    gui=Instance.new("ScreenGui",self.PlayerGui); gui.Name="CombinedFarmCraftGui"; gui.ResetOnSpawn=false
+    btn=Instance.new("TextButton",gui); btn.Name="ToggleButton"; btn.TextSize=20; btn.Font=Enum.Font.SourceSansBold; btn.TextColor3=Color3.fromRGB(255,255,255); btn.Size=UDim2.new(0,180,0,50); btn.Position=UDim2.new(1,-200,0,10); local c1=Instance.new("UICorner",btn); c1.CornerRadius=UDim.new(0,8)
+    rst=Instance.new("TextButton",gui); rst.Name="ResetButton"; rst.Text="Reset Config"; rst.TextSize=14; rst.Font=Enum.Font.SourceSansBold; rst.TextColor3=Color3.fromRGB(255,255,255); rst.BackgroundColor3=Color3.fromRGB(150,40,40); rst.Size=UDim2.new(0,100,0,30); rst.Position=UDim2.new(1,-310,0,20); local c2=Instance.new("UICorner",rst); c2.CornerRadius=UDim.new(0,6)
+    petBtn=Instance.new("TextButton",gui); petBtn.Name="PetSettingsButton"; petBtn.Text="Pet Sell Settings"; petBtn.TextSize=14; petBtn.Font=Enum.Font.SourceSansBold; petBtn.TextColor3=Color3.fromRGB(255,255,255); petBtn.BackgroundColor3=Color3.fromRGB(80,120,200); petBtn.Size=UDim2.new(0,120,0,40); petBtn.Position=UDim2.new(1,-440,0,15); local c3=Instance.new("UICorner",petBtn); c3.CornerRadius=UDim.new(0,6)
+    local sf=Instance.new("Frame",gui); sf.Size=UDim2.new(0,220,0,220); sf.Position=UDim2.new(0.5,-110,0.5,-110); sf.BackgroundColor3=Color3.fromRGB(55,55,55); sf.BorderColor3=Color3.fromRGB(150,150,150); sf.BorderSizePixel=2; sf.Visible=false; local c4=Instance.new("UICorner",sf); c4.CornerRadius=UDim.new(0,8)
+    local st=Instance.new("TextLabel",sf); st.Size=UDim2.new(1,0,0,30); st.Text="Main Settings"; st.BackgroundColor3=Color3.fromRGB(70,70,70); st.TextColor3=Color3.fromRGB(255,255,255); st.Font=Enum.Font.SourceSansBold; st.TextSize=16
+    local ll=Instance.new("UIListLayout",sf); ll.Padding=UDim.new(0,10); ll.SortOrder=Enum.SortOrder.LayoutOrder; ll.HorizontalAlignment=Enum.HorizontalAlignment.Center
+    local wl=Instance.new("TextLabel",sf); wl.Size=UDim2.new(0.9,0,0,20); wl.Text="Sell pets UNDER this KG:"; wl.BackgroundColor3=Color3.fromRGB(55,55,55); wl.TextColor3=Color3.fromRGB(220,220,220); wl.Font=Enum.Font.SourceSans; wl.TextSize=14; wl.LayoutOrder=1; wl.TextXAlignment=Enum.TextXAlignment.Left
+    local wi=Instance.new("TextBox",sf); wi.Size=UDim2.new(0.9,0,0,30); wi.BackgroundColor3=Color3.fromRGB(40,40,40); wi.TextColor3=Color3.fromRGB(255,255,255); wi.Font=Enum.Font.SourceSansBold; wi.TextSize=14; wi.Text=tostring(self.config.maxWeightToSell); wi.LayoutOrder=2
+    local spb=Instance.new("TextButton",sf); spb.Size=UDim2.new(0.9,0,0,35); spb.BackgroundColor3=Color3.fromRGB(70,90,180); spb.TextColor3=Color3.fromRGB(255,255,255); spb.Font=Enum.Font.SourceSansBold; spb.Text="Select Pets to Sell"; spb.TextSize=16; spb.LayoutOrder=3; local c5=Instance.new("UICorner",spb); c5.CornerRadius=UDim.new(0,6)
+    local esb=Instance.new("TextButton",sf); esb.Size=UDim2.new(0.9,0,0,35); esb.BackgroundColor3=Color3.fromRGB(70,90,180); esb.TextColor3=Color3.fromRGB(255,255,255); esb.Font=Enum.Font.SourceSansBold; esb.Text="Egg Placement Priority"; esb.TextSize=16; esb.LayoutOrder=4; local c6=Instance.new("UICorner",esb); c6.CornerRadius=UDim.new(0,6)
+    local svb=Instance.new("TextButton",sf); svb.Size=UDim2.new(0.9,0,0,35); svb.BackgroundColor3=Color3.fromRGB(80,120,200); svb.TextColor3=Color3.fromRGB(255,255,255); svb.Font=Enum.Font.SourceSansBold; svb.Text="Save & Close"; svb.TextSize=16; svb.LayoutOrder=5; local c7=Instance.new("UICorner",svb); c7.CornerRadius=UDim.new(0,6)
+    local pcm=Instance.new("Frame",gui); pcm.Size=UDim2.new(0,200,0,250); pcm.Position=UDim2.new(0.5,-100,0.5,-125); pcm.BackgroundColor3=Color3.fromRGB(55,55,55); pcm.BorderColor3=Color3.fromRGB(150,150,150); pcm.BorderSizePixel=2; pcm.Visible=false
+    local pct=Instance.new("TextLabel",pcm); pct.Size=UDim2.new(1,0,0,30); pct.Text="Pet Categories"; pct.BackgroundColor3=Color3.fromRGB(70,70,70); pct.TextColor3=Color3.fromRGB(255,255,255); pct.Font=Enum.Font.SourceSansBold; pct.TextSize=16
+    local pcs=Instance.new("ScrollingFrame",pcm); pcs.Size=UDim2.new(1,0,1,-75); pcs.Position=UDim2.new(0,0,0,30); pcs.BackgroundColor3=Color3.fromRGB(55,55,55); pcs.BorderSizePixel=0; pcs.ScrollBarImageColor3=Color3.fromRGB(120,120,120); pcs.ScrollBarThickness=6
+    local pcl=Instance.new("UIListLayout",pcs); pcl.Padding=UDim.new(0,5); pcl.HorizontalAlignment=Enum.HorizontalAlignment.Center
+    local sm={}; for n,l in pairs(self.petCategories) do
+        local f=Instance.new("Frame",gui); f.Size=UDim2.new(0,200,0,250); f.Position=UDim2.new(0.5,-100,0.5,-125); f.BackgroundColor3=Color3.fromRGB(55,55,55); f.BorderColor3=Color3.fromRGB(150,150,150); f.BorderSizePixel=2; f.Visible=false
+        local t=Instance.new("TextLabel",f); t.Size=UDim2.new(1,0,0,30); t.Text=n; t.BackgroundColor3=Color3.fromRGB(70,70,70); t.TextColor3=Color3.fromRGB(255,255,255); t.Font=Enum.Font.SourceSansBold; t.TextSize=16
+        local s=Instance.new("ScrollingFrame",f); s.Size=UDim2.new(1,0,1,-75); s.Position=UDim2.new(0,0,0,30); s.BackgroundColor3=Color3.fromRGB(55,55,55); s.BorderSizePixel=0; s.ScrollBarImageColor3=Color3.fromRGB(120,120,120); s.ScrollBarThickness=6
+        local sl=Instance.new("UIListLayout",s); sl.Padding=UDim.new(0,5); sl.SortOrder=Enum.SortOrder.LayoutOrder; sl.HorizontalAlignment=Enum.HorizontalAlignment.Center
+        local ch=5; for _,pn in ipairs(l) do
+            local b=Instance.new("TextButton",s); b.Size=UDim2.new(0.9,0,0,28); b.Font=Enum.Font.SourceSansBold; b.TextSize=14
+            local function u() if self.config.sellablePets[pn] then b.Text=pn..": ON"; b.BackgroundColor3=Color3.fromRGB(20,140,70) else b.Text=pn..": OFF"; b.BackgroundColor3=Color3.fromRGB(190,40,40) end end
+            b.MouseButton1Click:Connect(function() self.config.sellablePets[pn]=not self.config.sellablePets[pn]; u() end); u(); ch=ch+33
+        end; s.CanvasSize=UDim2.new(0,0,0,ch)
+        local bb=Instance.new("TextButton",f); bb.Size=UDim2.new(0.9,0,0,35); bb.Position=UDim2.new(0.05,0,1,-40); bb.BackgroundColor3=Color3.fromRGB(100,100,100); bb.TextColor3=Color3.fromRGB(255,255,255); bb.Font=Enum.Font.SourceSansBold; bb.Text="Back"; bb.TextSize=16
+        bb.MouseButton1Click:Connect(function() f.Visible=false; pcm.Visible=true end); sm[n]=f
     end
-
-    Toggle = function()
-        isEnabled = not isEnabled
-        UpdateButtonState()
-        UpdateGUIVisibility()
-        if isEnabled then SaveConfig(); mainThread = task.spawn(RunMasterLoop)
-        else
-            if mainThread then task.cancel(mainThread); mainThread = nil end
-            SaveConfig()
-        end
+    for n,_ in pairs(self.petCategories) do local b=Instance.new("TextButton",pcs); b.Size=UDim2.new(0.9,0,0,30); b.Text=n; b.BackgroundColor3=Color3.fromRGB(80,80,80); b.MouseButton1Click:Connect(function() pcm.Visible=false; sm[n].Visible=true end) end
+    local cbb=Instance.new("TextButton",pcm); cbb.Size=UDim2.new(0.9,0,0,35); cbb.Position=UDim2.new(0.05,0,1,-40); cbb.BackgroundColor3=Color3.fromRGB(100,100,100); cbb.TextColor3=Color3.fromRGB(255,255,255); cbb.Font=Enum.Font.SourceSansBold; cbb.Text="Back"; cbb.TextSize=16
+    cbb.MouseButton1Click:Connect(function() pcm.Visible=false; sf.Visible=true end)
+    local ef=Instance.new("Frame",gui); ef.Size=UDim2.new(0,220,0,320); ef.Position=UDim2.new(0.5,-110,0.5,-160); ef.BackgroundColor3=Color3.fromRGB(55,55,55); ef.BorderColor3=Color3.fromRGB(150,150,150); ef.BorderSizePixel=2; ef.Visible=false
+    local et=Instance.new("TextLabel",ef); et.Size=UDim2.new(1,0,0,30); et.Text="Egg Placement Priority"; et.BackgroundColor3=Color3.fromRGB(70,70,70); et.TextColor3=Color3.fromRGB(255,255,255); et.Font=Enum.Font.SourceSansBold; et.TextSize=16
+    local tcl=Instance.new("TextLabel",ef); tcl.Size=UDim2.new(0.9,0,0,20); tcl.Position=UDim2.new(0.05,0,0,35); tcl.Text="Target Egg Count:"; tcl.BackgroundColor3=Color3.fromRGB(55,55,55); tcl.TextColor3=Color3.fromRGB(220,220,220); tcl.Font=Enum.Font.SourceSans; tcl.TextSize=14; tcl.TextXAlignment=Enum.TextXAlignment.Left
+    local tci=Instance.new("TextBox",ef); tci.Size=UDim2.new(0.9,0,0,30); tci.Position=UDim2.new(0.05,0,0,55); tci.BackgroundColor3=Color3.fromRGB(40,40,40); tci.TextColor3=Color3.fromRGB(255,255,255); tci.Font=Enum.Font.SourceSansBold; tci.TextSize=14; tci.Text=tostring(self.config.targetEggCount)
+    local es=Instance.new("ScrollingFrame",ef); es.Size=UDim2.new(1,0,1,-130); es.Position=UDim2.new(0,0,0,90); es.BackgroundColor3=Color3.fromRGB(55,55,55); es.BorderSizePixel=0; es.ScrollBarImageColor3=Color3.fromRGB(120,120,120); es.ScrollBarThickness=6
+    local el=Instance.new("UIListLayout",es); el.Padding=UDim.new(0,5); el.HorizontalAlignment=Enum.HorizontalAlignment.Center
+    local function redraw() for _,v in ipairs(es:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end; local h=5
+        for i,n in ipairs(self.config.priority) do
+            local f=Instance.new("Frame",es); f.Size=UDim2.new(0.9,0,0,30); f.BackgroundColor3=Color3.fromRGB(40,40,40)
+            local l=Instance.new("TextLabel",f); l.Size=UDim2.new(1,-60,1,0); l.Text=i..". "..n; l.BackgroundColor3=Color3.fromRGB(40,40,40); l.TextColor3=Color3.fromRGB(255,255,255); l.Font=Enum.Font.SourceSans; l.TextSize=14; l.TextXAlignment=Enum.TextXAlignment.Left
+            local u=Instance.new("TextButton",f); u.Size=UDim2.new(0,25,1,0); u.Position=UDim2.new(1,-55,0,0); u.Text="▲"; u.BackgroundColor3=Color3.fromRGB(80,80,80)
+            local d=Instance.new("TextButton",f); d.Size=UDim2.new(0,25,1,0); d.Position=UDim2.new(1,-25,0,0); d.Text="▼"; d.BackgroundColor3=Color3.fromRGB(80,80,80)
+            u.MouseButton1Click:Connect(function() if i>1 then local t=self.config.priority[i]; self.config.priority[i]=self.config.priority[i-1]; self.config.priority[i-1]=t; redraw() end end)
+            d.MouseButton1Click:Connect(function() if i<#self.config.priority then local t=self.config.priority[i]; self.config.priority[i]=self.config.priority[i+1]; self.config.priority[i+1]=t; redraw() end end)
+            h=h+35
+        end; es.CanvasSize=UDim2.new(0,0,0,h)
     end
-    
-    ResetConfig = function()
-        print("Resetting config file...")
-        pcall(function() writefile(CONFIG_FILE_NAME, HttpService:JSONEncode({})) end)
-        print("✅ Config cleared. Please restart the script or toggle the main button.")
-        if isEnabled then
-            isEnabled = false
-            if mainThread then task.cancel(mainThread); mainThread = nil end
-            UpdateButtonState()
-            UpdateGUIVisibility()
-        end
-    end
-    
-    if PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
-        PlayerGui.CombinedFarmCraftGui:Destroy()
-    end
-    LoadConfig()
-    CreateGUI()
-    UpdateButtonState()
-    UpdateGUIVisibility()
-    if isEnabled then
-        mainThread = task.spawn(RunMasterLoop)
-    end
-
-    print("Combined Auto-Farm & Crafter (Final) loaded.")
+    local esv=Instance.new("TextButton",ef); esv.Size=UDim2.new(0.9,0,0,35); esv.Position=UDim2.new(0.05,0,1,-40); esv.BackgroundColor3=Color3.fromRGB(80,120,200); esv.TextColor3=Color3.fromRGB(255,255,255); esv.Font=Enum.Font.SourceSansBold; esv.Text="Save & Close"; esv.TextSize=16
+    esv.MouseButton1Click:Connect(function() local n=tonumber(tci.Text); if n then self.config.targetEggCount=n end; self:SaveConfig(); ef.Visible=false; sf.Visible=true; self.needsEggCheck=true end)
+    petBtn.MouseButton1Click:Connect(function() sf.Visible=not sf.Visible end)
+    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then self.config.maxWeightToSell=n end; self:SaveConfig(); sf.Visible=false; self:RunAutoSeller() end)
+    spb.MouseButton1Click:Connect(function() sf.Visible=false; pcm.Visible=true end)
+    esb.MouseButton1Click:Connect(function() sf.Visible=false; redraw(); ef.Visible=true end)
+    btn.MouseButton1Click:Connect(function() self:Toggle() end)
+    rst.MouseButton1Click:Connect(function() self:ResetConfig() end)
+end
+function FarmModule:Toggle()
+    self.isEnabled=not self.isEnabled; self:UpdateButtonState(); self:UpdateGUIVisibility()
+    if self.isEnabled then self:SaveConfig(); self.mainThread=task.spawn(function() self:RunMasterLoop() end)
+    else if self.mainThread then task.cancel(self.mainThread); self.mainThread=nil end; self:SaveConfig() end
+end
+function FarmModule:ResetConfig()
+    print("Resetting config file...")
+    pcall(function() writefile(self.CONFIG_FILE_NAME,self.HttpService:JSONEncode({})) end)
+    print("✅ Config cleared. Please restart or toggle.")
+    if self.isEnabled then self.isEnabled=false; if self.mainThread then task.cancel(self.mainThread); self.mainThread=nil end; self:UpdateButtonState(); self:UpdateGUIVisibility() end
+end
+if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy() end
+FarmModule:LoadConfig()
+FarmModule:CreateGUI()
+FarmModule:UpdateButtonState()
+FarmModule:UpdateGUIVisibility()
+if FarmModule.isEnabled then FarmModule.mainThread=task.spawn(function() FarmModule:RunMasterLoop() end) end
+print("Combined Auto-Farm & Crafter (Final) loaded.")
 end
