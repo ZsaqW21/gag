@@ -31,11 +31,11 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Optimized.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v14_Failsafe.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
-    FarmModule.needsEggCheck = true -- NEW: Flag to control when to scan the farm
+    FarmModule.needsEggCheck = true
     FarmModule.config = {
         maxWeightToSell = 4,
         targetEggCount = 3,
@@ -254,7 +254,6 @@ do
 
     function FarmModule:RunMasterLoop()
         while self.isEnabled do
-            -- CORRECTED: Only perform the expensive egg scan if the flag is set
             if self.needsEggCheck then
                 self:UpdateButtonState("Finding Farm")
                 local myFarm = self:FindFarmByLocation()
@@ -268,11 +267,24 @@ do
                 
                 if #allEggs >= 8 and readyCount == #allEggs then
                     self:UpdateButtonState("Hatching " .. readyCount)
+                    local eggCountBeforeHatch = #allEggs
+                    
                     for _, eggToHatch in ipairs(allEggs) do
                         if not self.isEnabled then break end
                         self:HatchOneEgg(eggToHatch); task.wait(0.2)
                     end
-                    task.wait(3); continue
+                    
+                    task.wait(3) -- Give the game time to remove the hatched eggs
+                    
+                    local eggsAfterHatch = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(eggsAfterHatch, obj) end end
+                    
+                    -- CORRECTED: If the number of eggs on the farm has not decreased, we are stuck.
+                    if #eggsAfterHatch >= eggCountBeforeHatch then
+                        warn("Hatching failed (pet inventory may be full). Switching to crafting loop.")
+                        self.needsEggCheck = false
+                    end
+                    
+                    continue
                 end
                 
                 if #allEggs < self.config.targetEggCount then
@@ -296,8 +308,6 @@ do
                     end
                 end
 
-                -- If we get here, it means there are eggs but they are not ready.
-                -- Turn off the check flag to enter the fast crafting loop.
                 if #allEggs > 0 and readyCount < #allEggs then
                     print("Eggs are not ready. Entering fast crafting loop.")
                     self.needsEggCheck = false
@@ -305,7 +315,7 @@ do
             end
             
             self:PerformOneCraftCycle()
-            task.wait(3) -- A small delay in the fast crafting loop
+            task.wait(3)
         end
         self:SaveConfig()
         self:UpdateButtonState()
@@ -386,7 +396,7 @@ do
         local EggTitle = Instance.new("TextLabel", EggFrame); EggTitle.Size = UDim2.new(1, 0, 0, 30); EggTitle.Text = "Egg Placement Priority"; EggTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); EggTitle.TextColor3 = Color3.fromRGB(255, 255, 255); EggTitle.Font = Enum.Font.SourceSansBold; EggTitle.TextSize = 16
         
         local TargetCountLabel = Instance.new("TextLabel", EggFrame); TargetCountLabel.Size = UDim2.new(0.9, 0, 0, 20); TargetCountLabel.Position = UDim2.new(0.05, 0, 0, 35); TargetCountLabel.Text = "Target Egg Count:"; TargetCountLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); TargetCountLabel.TextColor3 = Color3.fromRGB(220, 220, 220); TargetCountLabel.Font = Enum.Font.SourceSans; TargetCountLabel.TextSize = 14; TargetCountLabel.TextXAlignment = Enum.TextXAlignment.Left
-        local TargetCountInput = Instance.new("TextBox", EggFrame); TargetCountInput.Size = UDim2.new(0.9, 0, 0, 30); TargetCountInput.Position = UDim2.new(0.05, 0, 0, 55); TargetCountInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); TargetCountInput.TextColor3 = Color3.fromRGB(255, 255, 255); TargetCountInput.Font = Enum.Font.SourceSansBold; TargetCountInput.TextSize = 14; TargetCountInput.Text = tostring(self.config.targetEggCount);
+        local TargetCountInput = Instance.new("TextBox", EggFrame); TargetCountInput.Size = UDim2.new(0.9, 0, 0, 30); TargetCountInput.Position = UDim2.new(0.05, 0, 0, 55); TargetCountInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40); TargetCountInput.TextColor3 = Color3.fromRGB(255, 255, 255); TargetCountInput.Font = Enum.Font.SourceSansBold; TargetCountInput.TextSize = 14; TargetCountInput.Text = tostring(config.targetEggCount);
         
         local EggListScroll = Instance.new("ScrollingFrame", EggFrame); EggListScroll.Size = UDim2.new(1, 0, 1, -130); EggListScroll.Position = UDim2.new(0, 0, 0, 90); EggListScroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); EggListScroll.BorderSizePixel = 0; EggListScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); EggListScroll.ScrollBarThickness = 6
         local eggListLayout = Instance.new("UIListLayout", EggListScroll); eggListLayout.Padding = UDim.new(0, 5); eggListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -394,62 +404,61 @@ do
         local function redrawEggPriorityList()
             for _, v in ipairs(EggListScroll:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end
             local eggContentHeight = 5
-            for i, eggName in ipairs(self.config.placementPriority) do
+            for i, eggName in ipairs(config.placementPriority) do
                 local itemFrame = Instance.new("Frame", EggListScroll); itemFrame.Size = UDim2.new(0.9, 0, 0, 30); itemFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
                 local eggLabel = Instance.new("TextLabel", itemFrame); eggLabel.Size = UDim2.new(1, -60, 1, 0); eggLabel.Text = i .. ". " .. eggName; eggLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); eggLabel.TextColor3 = Color3.fromRGB(255, 255, 255); eggLabel.Font = Enum.Font.SourceSans; eggLabel.TextSize = 14; eggLabel.TextXAlignment = Enum.TextXAlignment.Left
                 local upButton = Instance.new("TextButton", itemFrame); upButton.Size = UDim2.new(0, 25, 1, 0); upButton.Position = UDim2.new(1, -55, 0, 0); upButton.Text = "▲"; upButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
                 local downButton = Instance.new("TextButton", itemFrame); downButton.Size = UDim2.new(0, 25, 1, 0); downButton.Position = UDim2.new(1, -25, 0, 0); downButton.Text = "▼"; downButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-                upButton.MouseButton1Click:Connect(function() if i > 1 then local temp = self.config.placementPriority[i]; self.config.placementPriority[i] = self.config.placementPriority[i-1]; self.config.placementPriority[i-1] = temp; redrawEggPriorityList() end end)
-                downButton.MouseButton1Click:Connect(function() if i < #self.config.placementPriority then local temp = self.config.placementPriority[i]; self.config.placementPriority[i] = self.config.placementPriority[i+1]; self.config.placementPriority[i+1] = temp; redrawEggPriorityList() end end)
+                upButton.MouseButton1Click:Connect(function() if i > 1 then local temp = config.placementPriority[i]; config.placementPriority[i] = config.placementPriority[i-1]; config.placementPriority[i-1] = temp; redrawEggPriorityList() end end)
+                downButton.MouseButton1Click:Connect(function() if i < #config.placementPriority then local temp = config.placementPriority[i]; config.placementPriority[i] = config.placementPriority[i+1]; config.placementPriority[i+1] = temp; redrawEggPriorityList() end end)
                 eggContentHeight = eggContentHeight + 35
             end
             EggListScroll.CanvasSize = UDim2.new(0, 0, 0, eggContentHeight)
         end
         local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
-        EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then self.config.targetEggCount = newCount end; self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; self.needsEggCheck = true end)
+        EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then config.targetEggCount = newCount end; SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; needsEggCheck = true end)
 
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
-        SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false; self:RunAutoSeller() end)
+        SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then config.maxWeightToSell = newWeight end; SaveConfig(); SettingsFrame.Visible = false; RunAutoSeller() end)
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
         
-        mainButton.MouseButton1Click:Connect(function() self:Toggle() end)
-        resetButton.MouseButton1Click:Connect(function() self:ResetConfig() end)
+        mainButton.MouseButton1Click:Connect(function() Toggle() end)
+        resetButton.MouseButton1Click:Connect(function() ResetConfig() end)
     end
 
-    function FarmModule:Toggle()
-        self.isEnabled = not self.isEnabled
-        self:UpdateButtonState()
-        self:UpdateGUIVisibility()
-        if self.isEnabled then self:SaveConfig(); self.mainThread = task.spawn(function() self:RunMasterLoop() end)
+    Toggle = function()
+        isEnabled = not isEnabled
+        UpdateButtonState()
+        UpdateGUIVisibility()
+        if isEnabled then SaveConfig(); mainThread = task.spawn(RunMasterLoop)
         else
-            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
-            self:SaveConfig()
+            if mainThread then task.cancel(mainThread); mainThread = nil end
+            SaveConfig()
         end
     end
     
-    function FarmModule:ResetConfig()
+    ResetConfig = function()
         print("Resetting config file...")
-        pcall(function() writefile(self.CONFIG_FILE_NAME, self.HttpService:JSONEncode({})) end)
+        pcall(function() writefile(CONFIG_FILE_NAME, HttpService:JSONEncode({})) end)
         print("✅ Config cleared. Please restart the script or toggle the main button.")
-        if self.isEnabled then
-            self.isEnabled = false
-            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
-            self:UpdateButtonState()
-            self:UpdateGUIVisibility()
+        if isEnabled then
+            isEnabled = false
+            if mainThread then task.cancel(mainThread); mainThread = nil end
+            UpdateButtonState()
+            UpdateGUIVisibility()
         end
     end
     
-    -- CORRECTED: Initialization order
-    if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
-        FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy()
+    if PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
+        PlayerGui.CombinedFarmCraftGui:Destroy()
     end
-    FarmModule:LoadConfig()
-    FarmModule:CreateGUI()
-    FarmModule:UpdateButtonState()
-    FarmModule:UpdateGUIVisibility()
-    if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
+    LoadConfig()
+    CreateGUI()
+    UpdateButtonState()
+    UpdateGUIVisibility()
+    if isEnabled then
+        mainThread = task.spawn(RunMasterLoop)
     end
 
     print("Combined Auto-Farm & Crafter (Final) loaded.")
