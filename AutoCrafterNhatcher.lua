@@ -31,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v17_NameFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v18_Recipes.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -59,6 +59,33 @@ do
         ["Paradise Egg Pets"] = {"Ostrich", "Peacock", "Capybara", "Scarlet Macaw"},
         ["Bug Egg Pets"] = {"Caterpillar", "Snail", "Giant Ant", "Praying Mantis"},
         ["Mythical Egg Pets"] = {"Grey Mouse", "Brown Mouse", "Squirrel", "Red Giant Ant"}
+    }
+    
+    FarmModule.Recipes = {
+        ["Primal Egg"] = {
+            Workbench = "DinoEventWorkbench",
+            Ingredients = {
+                { AttributeName = "h", AttributeValue = "Dinosaur Egg", ItemType = "PetEgg" },
+                { AttributeName = "f", AttributeValue = "Bone Blossom", ItemType = "Holdable" }
+            }
+        },
+        ["Dinosaur Egg"] = {
+            Workbench = "DinoEventWorkbench",
+            Ingredients = {
+                { AttributeName = "h", AttributeValue = "Common Egg", ItemType = "PetEgg" },
+                { AttributeName = "f", AttributeValue = "Bone Blossom", ItemType = "Holdable" }
+            }
+        },
+        ["Ancient Seed Pack"] = {
+            Workbench = "DinoEventWorkbench",
+            Ingredients = {
+                { AttributeName = "h", AttributeValue = "Dinosaur Egg", ItemType = "PetEgg" }
+            }
+        },
+        ["none"] = {
+            Workbench = "none",
+            Ingredients = {}
+        }
     }
 
     FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
@@ -224,9 +251,15 @@ do
 
     function FarmModule:PerformOneCraftCycle()
         local success, err = pcall(function()
+            local activeRecipeName = self.config.activeRecipe
+            if activeRecipeName == "none" then
+                self:UpdateButtonState("Waiting...")
+                self.TeleportService:Teleport(game.PlaceId)
+                return
+            end
+
             self:UpdateButtonState("Crafting...")
             
-            local activeRecipeName = self.config.activeRecipe
             local recipeData = self.Recipes[activeRecipeName]
             if not recipeData then
                 error("Active recipe '"..activeRecipeName.."' not found in database.")
@@ -247,7 +280,7 @@ do
                         for _, t in ipairs(self.Character:GetChildren()) do if t:IsA("Tool") then t.Parent = self.Backpack end end
                         tool.Parent = self.Character; task.wait(0.3)
                         local uuid = tool:GetAttribute("c")
-                        if uuid then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", i, { ItemType = ingredient.ItemType, ItemData = { UUID = uuid } }) end
+                        if uuid then self.CraftingService:FireServer("InputItem", DinoTable, recipeData.Workbench, i, { ItemType = ingredient.ItemType, ItemData = { UUID = uuid } }) end
                         tool.Parent = self.Backpack; break
                     end
                 end
@@ -260,48 +293,55 @@ do
 
     function FarmModule:RunMasterLoop()
         while self.isEnabled do
-            self:UpdateButtonState("Finding Farm")
-            local myFarm = self:FindFarmByLocation()
-            if not myFarm then task.wait(5); continue end
-            local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
-            if not objectsFolder then task.wait(5); continue end
-            
-            self:UpdateButtonState("Checking Eggs")
-            local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
-            local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
-            
-            if #allEggs >= self.config.targetEggCount and readyCount == #allEggs then
-                self:UpdateButtonState("Hatching " .. readyCount)
-                for _, eggToHatch in ipairs(allEggs) do
-                    if not self.isEnabled then break end
-                    self:HatchOneEgg(eggToHatch); task.wait(0.2)
-                end
-                task.wait(3); continue
-            end
-            
-            if #allEggs < self.config.targetEggCount then
-                self:UpdateButtonState("Placing Eggs")
-                local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid:UnequipTools(); task.wait(0.2)
-                    local toolInstance = self:FindPlacementTool()
-                    if toolInstance then
-                        humanoid:EquipTool(toolInstance); task.wait(0.5)
-                        self.placedPositions = {}
-                        local eggsToPlace = self.config.targetEggCount - #allEggs
-                        for i = 1, eggsToPlace do
-                            if not self.isEnabled then break end
-                            self:PlaceOneEgg(); task.wait(0.5)
-                        end
-                        task.wait(1)
-                        self:RunAutoSeller()
-                        continue
+            if self.needsEggCheck then
+                self:UpdateButtonState("Finding Farm")
+                local myFarm = self:FindFarmByLocation()
+                if not myFarm then task.wait(5); continue end
+                local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
+                if not objectsFolder then task.wait(5); continue end
+                
+                self:UpdateButtonState("Checking Eggs")
+                local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
+                local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
+                
+                if #allEggs >= self.config.targetEggCount and readyCount == #allEggs then
+                    self:UpdateButtonState("Hatching " .. readyCount)
+                    for _, eggToHatch in ipairs(allEggs) do
+                        if not self.isEnabled then break end
+                        self:HatchOneEgg(eggToHatch); task.wait(0.2)
                     end
+                    task.wait(3); continue
+                end
+                
+                if #allEggs < self.config.targetEggCount then
+                    self:UpdateButtonState("Placing Eggs")
+                    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid:UnequipTools(); task.wait(0.2)
+                        local toolInstance = self:FindPlacementTool()
+                        if toolInstance then
+                            humanoid:EquipTool(toolInstance); task.wait(0.5)
+                            self.placedPositions = {}
+                            local eggsToPlace = self.config.targetEggCount - #allEggs
+                            for i = 1, eggsToPlace do
+                                if not self.isEnabled then break end
+                                self:PlaceOneEgg(); task.wait(0.5)
+                            end
+                            task.wait(1)
+                            self:RunAutoSeller()
+                            continue
+                        end
+                    end
+                end
+
+                if #allEggs > 0 and readyCount < #allEggs then
+                    print("Eggs are not ready. Entering fast crafting loop.")
+                    self.needsEggCheck = false
                 end
             end
             
             self:PerformOneCraftCycle()
-            task.wait(5) 
+            task.wait(3)
         end
         self:SaveConfig()
         self:UpdateButtonState()
@@ -355,7 +395,6 @@ do
         local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         
         local subMenus = {}
-        -- CORRECTED: Use the renamed variable here
         for categoryName, petList in pairs(self.PetCategoryData) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
             local title = Instance.new("TextLabel", frame); title.Size = UDim2.new(1, 0, 0, 30); title.Text = categoryName; title.BackgroundColor3 = Color3.fromRGB(70, 70, 70); title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.SourceSansBold; title.TextSize = 16
@@ -374,7 +413,6 @@ do
             subMenus[categoryName] = frame
         end
         
-        -- CORRECTED: Use the renamed variable here too
         for categoryName, _ in pairs(self.PetCategoryData) do
             local catButton = Instance.new("TextButton", PetCategoryScroll)
             catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
@@ -409,10 +447,28 @@ do
         local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
         EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then self.config.targetEggCount = newCount end; self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; self.needsEggCheck = true end)
 
+        local RecipeFrame = Instance.new("Frame", screenGui); RecipeFrame.Size = UDim2.new(0, 220, 0, 280); RecipeFrame.Position = UDim2.new(0.5, -110, 0.5, -140); RecipeFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); RecipeFrame.BorderSizePixel = 2; RecipeFrame.Visible = false
+        local RecipeTitle = Instance.new("TextLabel", RecipeFrame); RecipeTitle.Size = UDim2.new(1, 0, 0, 30); RecipeTitle.Text = "Recipes"; RecipeTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); RecipeTitle.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeTitle.Font = Enum.Font.SourceSansBold; RecipeTitle.TextSize = 16
+        local RecipeList = Instance.new("ScrollingFrame", RecipeFrame); RecipeList.Size = UDim2.new(1, 0, 1, -75); RecipeList.Position = UDim2.new(0, 0, 0, 30); RecipeList.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeList.BorderSizePixel = 0; RecipeList.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); RecipeList.ScrollBarThickness = 6
+        local recipeListLayout = Instance.new("UIListLayout", RecipeList); recipeListLayout.Padding = UDim.new(0, 5); recipeListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        
+        local function redrawRecipeList()
+            for _, v in ipairs(RecipeList:GetChildren()) do v:Destroy() end
+            local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. self.config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
+            for recipeName, _ in pairs(self.Recipes) do
+                local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName
+                if recipeName == self.config.activeRecipe then recipeButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end
+                recipeButton.MouseButton1Click:Connect(function() self.config.activeRecipe = recipeName; redrawRecipeList() end)
+            end
+        end
+        local RecipeBackButton = Instance.new("TextButton", RecipeFrame); RecipeBackButton.Size = UDim2.new(0.9, 0, 0, 35); RecipeBackButton.Position = UDim2.new(0.05, 0, 1, -40); RecipeBackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); RecipeBackButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeBackButton.Font = Enum.Font.SourceSansBold; RecipeBackButton.Text = "Back"; RecipeBackButton.TextSize = 16
+        RecipeBackButton.MouseButton1Click:Connect(function() self:SaveConfig(); RecipeFrame.Visible = false; SettingsFrame.Visible = true end)
+
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false; self:RunAutoSeller() end)
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
+        RecipesButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawRecipeList(); RecipeFrame.Visible = true end)
         
         mainButton.MouseButton1Click:Connect(function() self:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() self:ResetConfig() end)
