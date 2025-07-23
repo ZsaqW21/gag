@@ -6,33 +6,36 @@ task.wait(2) -- Add a small extra delay for safety
 
 -- Isolate the entire script to prevent name conflicts
 do
+    -- Create a self-contained module to hold all functions and state
+    local FarmModule = {}
+
     --================================================================================--
     --                         Services & Player Setup
     --================================================================================--
-    local HttpService = game:GetService("HttpService")
-    local Players = game:GetService("Players")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local TeleportService = game:GetService("TeleportService")
-    local Workspace = game:GetService("Workspace")
+    FarmModule.HttpService = game:GetService("HttpService")
+    FarmModule.Players = game:GetService("Players")
+    FarmModule.ReplicatedStorage = game:GetService("ReplicatedStorage")
+    FarmModule.TeleportService = game:GetService("TeleportService")
+    FarmModule.Workspace = game:GetService("Workspace")
 
-    local LocalPlayer = Players.LocalPlayer
-    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-    local Backpack = LocalPlayer:WaitForChild("Backpack")
-    local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    FarmModule.LocalPlayer = FarmModule.Players.LocalPlayer
+    FarmModule.PlayerGui = FarmModule.LocalPlayer:WaitForChild("PlayerGui")
+    FarmModule.Backpack = FarmModule.LocalPlayer:WaitForChild("Backpack")
+    FarmModule.Character = FarmModule.LocalPlayer.Character or FarmModule.LocalPlayer.CharacterAdded:Wait()
 
-    local GameEvents = ReplicatedStorage:WaitForChild("GameEvents")
-    local CraftingService = GameEvents:WaitForChild("CraftingGlobalObjectService")
-    local PetEggService = GameEvents:WaitForChild("PetEggService")
-    local SellPetRemote = GameEvents:WaitForChild("SellPet_RE")
+    FarmModule.GameEvents = FarmModule.ReplicatedStorage:WaitForChild("GameEvents")
+    FarmModule.CraftingService = FarmModule.GameEvents:WaitForChild("CraftingGlobalObjectService")
+    FarmModule.PetEggService = FarmModule.GameEvents:WaitForChild("PetEggService")
+    FarmModule.SellPetRemote = FarmModule.GameEvents:WaitForChild("SellPet_RE")
 
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "CombinedFarmAndSeller_v20_Final.json"
-    local isEnabled = false
-    local mainThread = nil
-    local placedPositions = {}
-    local config = {
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v21_Final.json"
+    FarmModule.isEnabled = false
+    FarmModule.mainThread = nil
+    FarmModule.placedPositions = {}
+    FarmModule.config = {
         maxWeightToSell = 4,
         targetEggCount = 3,
         activeRecipe = "Primal Egg",
@@ -49,7 +52,8 @@ do
         }
     }
     
-    local PetCategoryData = {
+    -- CORRECTED: Renamed to avoid conflicts
+    FarmModule.UniquePetCategoryData = {
         ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
         ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
         ["Zen Egg Pets"] = {"Shiba Inu", "Nihonzaru", "Tanuki", "Tanchozuru", "Kappa"},
@@ -58,7 +62,7 @@ do
         ["Mythical Egg Pets"] = {"Grey Mouse", "Brown Mouse", "Squirrel", "Red Giant Ant"}
     }
     
-    local MyRecipeDatabase_v20 = {
+    FarmModule.UniqueRecipeDatabase = {
         ["Primal Egg"] = {
             Workbench = "DinoEventWorkbench",
             Ingredients = {
@@ -85,11 +89,11 @@ do
         }
     }
 
-    local EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
-    local PLACEMENT_ATTRIBUTE_NAME = "h"
-    local MINIMUM_DISTANCE = 5
-    local corner1 = Vector3.new(-2.5596256256103516, 0.13552704453468323, 47.833213806152344)
-    local corner2 = Vector3.new(26.806381225585938, 0.13552704453468323, 106.00519561767578)
+    FarmModule.EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
+    FarmModule.PLACEMENT_ATTRIBUTE_NAME = "h"
+    FarmModule.MINIMUM_DISTANCE = 5
+    FarmModule.corner1 = Vector3.new(-2.5596256256103516, 0.13552704453468323, 47.833213806152344)
+    FarmModule.corner2 = Vector3.new(26.806381225585938, 0.13552704453468323, 106.00519561767578)
 
     -- Forward declare functions
     local UpdateButtonState, UpdateGUIVisibility, RunMasterLoop, Toggle, ResetConfig, CreateGUI
