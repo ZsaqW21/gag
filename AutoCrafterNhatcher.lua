@@ -2,7 +2,7 @@
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
-task.wait(1) -- Increased delay for safety
+task.wait(1) -- Add a small extra delay for safety
 
 -- Isolate the entire script to prevent name conflicts
 do
@@ -62,7 +62,7 @@ do
     }
     
     -- CORRECTED: Renamed to avoid potential name conflicts
-    FarmModule.UniqueRecipeDatabase = {
+    FarmModule.MyRecipeDatabase_v20 = {
         ["Primal Egg"] = {
             Workbench = "DinoEventWorkbench",
             Ingredients = {
@@ -261,7 +261,7 @@ do
 
             self:UpdateButtonState("Crafting...")
             
-            local recipeData = self.UniqueRecipeDatabase[activeRecipeName]
+            local recipeData = self.MyRecipeDatabase_v20[activeRecipeName] -- CORRECTED
             if not recipeData then
                 error("Active recipe '"..activeRecipeName.."' not found in database.")
             end
@@ -498,7 +498,6 @@ do
         end
     end
     
-    -- CORRECTED: Initialization order
     if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
         FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy()
     end
@@ -507,7 +506,7 @@ do
     FarmModule:UpdateButtonState()
     FarmModule:UpdateGUIVisibility()
     if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
+        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
     end
 
     print("Combined Auto-Farm & Crafter (Final) loaded.")
