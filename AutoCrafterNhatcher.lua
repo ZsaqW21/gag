@@ -15,7 +15,6 @@ do
     local TeleportService = game:GetService("TeleportService")
     local Workspace = game:GetService("Workspace")
 
-    -- CORRECTED: More robustly wait for the LocalPlayer and its components
     local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
     local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -29,7 +28,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    local CONFIG_FILE_NAME = "CombinedFarmAndSeller_v22_RobustInit.json"
+    local CONFIG_FILE_NAME = "CombinedFarmAndSeller_v25_WithHarvest.json"
     local isEnabled = false
     local mainThread = nil
     local placedPositions = {}
@@ -37,7 +36,6 @@ do
     local config = {
         maxWeightToSell = 4,
         targetEggCount = 3,
-        activeRecipe = "Primal Egg",
         sellablePets = {
             ["Parasaurolophus"] = false, ["Iguanodon"] = false, ["Pachycephalosaurus"] = false, ["Dilophosaurus"] = false, ["Ankylosaurus"] = false,
             ["Raptor"] = false, ["Triceratops"] = false, ["Stegosaurus"] = false, ["Pterodactyl"] = false,
@@ -51,40 +49,13 @@ do
         }
     }
     
-    local UniquePetCategoryData = {
+    local PetCategoryData = {
         ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
         ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
         ["Zen Egg Pets"] = {"Shiba Inu", "Nihonzaru", "Tanuki", "Tanchozuru", "Kappa"},
         ["Paradise Egg Pets"] = {"Ostrich", "Peacock", "Capybara", "Scarlet Macaw"},
         ["Bug Egg Pets"] = {"Caterpillar", "Snail", "Giant Ant", "Praying Mantis"},
         ["Mythical Egg Pets"] = {"Grey Mouse", "Brown Mouse", "Squirrel", "Red Giant Ant"}
-    }
-    
-    local UniqueRecipeDatabase = {
-        ["Primal Egg"] = {
-            Workbench = "DinoEventWorkbench",
-            Ingredients = {
-                { AttributeName = "h", AttributeValue = "Dinosaur Egg", ItemType = "PetEgg" },
-                { AttributeName = "f", AttributeValue = "Bone Blossom", ItemType = "Holdable" }
-            }
-        },
-        ["Dinosaur Egg"] = {
-            Workbench = "DinoEventWorkbench",
-            Ingredients = {
-                { AttributeName = "h", AttributeValue = "Common Egg", ItemType = "PetEgg" },
-                { AttributeName = "f", AttributeValue = "Bone Blossom", ItemType = "Holdable" }
-            }
-        },
-        ["Ancient Seed Pack"] = {
-            Workbench = "DinoEventWorkbench",
-            Ingredients = {
-                { AttributeName = "h", AttributeValue = "Dinosaur Egg", ItemType = "PetEgg" }
-            }
-        },
-        ["none"] = {
-            Workbench = "none",
-            Ingredients = {}
-        }
     }
 
     local EGG_UUID_ATTRIBUTE = "OBJECT_UUID"
@@ -106,8 +77,7 @@ do
             maxWeightToSell = config.maxWeightToSell,
             sellablePets = config.sellablePets,
             placementPriority = config.placementPriority,
-            targetEggCount = config.targetEggCount,
-            activeRecipe = config.activeRecipe
+            targetEggCount = config.targetEggCount
         }
         pcall(function() writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(configToSave)) end)
     end
@@ -121,7 +91,6 @@ do
                 isEnabled = decodedData.enabled or false
                 config.maxWeightToSell = decodedData.maxWeightToSell or config.maxWeightToSell
                 config.targetEggCount = decodedData.targetEggCount or config.targetEggCount
-                config.activeRecipe = decodedData.activeRecipe or config.activeRecipe
                 if typeof(decodedData.sellablePets) == "table" then
                     for petName, _ in pairs(config.sellablePets) do
                         if decodedData.sellablePets[petName] ~= nil then
@@ -251,44 +220,61 @@ do
         print("Auto-sell finished. Sold " .. totalPetsSold .. " pet(s).")
     end
 
+    local function CountBoneBlossoms()
+        local count = 0
+        for _, tool in ipairs(Backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" then
+                count = count + 1
+            end
+        end
+        return count
+    end
+
+    local function RunAutoHarvester(plantsFolder)
+        local function scanAndHarvest(folder)
+            for _, item in ipairs(folder:GetChildren()) do
+                local prompt = item:FindFirstChild("ProximityPrompt", true)
+                if prompt and prompt.Enabled then
+                    fireproximityprompt(prompt)
+                    task.wait(0.1)
+                end
+                local fruitsFolder = item:FindFirstChild("Fruits")
+                if fruitsFolder then
+                    scanAndHarvest(fruitsFolder)
+                end
+            end
+        end
+        scanAndHarvest(plantsFolder)
+    end
+
     local function PerformOneCraftCycle()
         local success, err = pcall(function()
-            local activeRecipeName = config.activeRecipe
-            if activeRecipeName == "none" then
-                UpdateButtonState("Waiting...")
-                TeleportService:Teleport(game.PlaceId)
-                return
-            end
-
             UpdateButtonState("Crafting...")
             
-            local recipeData = UniqueRecipeDatabase[activeRecipeName]
-            if not recipeData then
-                error("Active recipe '"..activeRecipeName.."' not found in database.")
-            end
-
             local DinoEvent = Workspace:FindFirstChild("DinoEvent") or ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
             if DinoEvent and DinoEvent:IsDescendantOf(ReplicatedStorage) then DinoEvent.Parent = Workspace end
             
             local DinoTable = Workspace:WaitForChild("DinoEvent", 5):WaitForChild("DinoCraftingTable", 5)
             if not DinoTable then error("Could not find DinoCraftingTable. Aborting craft cycle.") end
 
-            CraftingService:FireServer("SetRecipe", DinoTable, recipeData.Workbench, activeRecipeName)
+            CraftingService:FireServer("SetRecipe", DinoTable, "DinoEventWorkbench", "Primal Egg")
             task.wait(0.3)
-            
-            for i, ingredient in ipairs(recipeData.Ingredients) do
-                for _, tool in ipairs(Backpack:GetChildren()) do
-                    if tool:IsA("Tool") and tool:GetAttribute(ingredient.AttributeName) == ingredient.AttributeValue then
-                        for _, t in ipairs(Character:GetChildren()) do if t:IsA("Tool") then t.Parent = Backpack end end
-                        tool.Parent = Character; task.wait(0.3)
-                        local uuid = tool:GetAttribute("c")
-                        if uuid then CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", i, { ItemType = ingredient.ItemType, ItemData = { UUID = uuid } }) end
-                        tool.Parent = Backpack; break
-                    end
+            for _, tool in ipairs(Backpack:GetChildren()) do
+                if tool:IsA("Tool") and tool:GetAttribute("h") == "Dinosaur Egg" then
+                    tool.Parent = Character; task.wait(0.3)
+                    if tool:GetAttribute("c") then CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 1, { ItemType = "PetEgg", ItemData = { UUID = tool:GetAttribute("c") } }) end
+                    tool.Parent = Backpack; break
                 end
             end
-
-            task.wait(0.3); CraftingService:FireServer("Craft", DinoTable, recipeData.Workbench); task.wait(1); TeleportService:Teleport(game.PlaceId)
+            for _, tool in ipairs(Backpack:GetChildren()) do
+                if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" then
+                    for _, t in ipairs(Character:GetChildren()) do if t:IsA("Tool") then t.Parent = Backpack end end
+                    tool.Parent = Character; task.wait(0.3)
+                    if tool:GetAttribute("c") then CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", 2, { ItemType = "Holdable", ItemData = { UUID = tool:GetAttribute("c") } }) end
+                    tool.Parent = Backpack; break
+                end
+            end
+            task.wait(0.3); CraftingService:FireServer("Craft", DinoTable, "DinoEventWorkbench"); task.wait(1); TeleportService:Teleport(game.PlaceId)
         end)
         if not success then warn("AutoCraft Error:", err, "-- Turning off."); isEnabled = false; UpdateButtonState(); SaveConfig() end
     end
@@ -300,7 +286,8 @@ do
                 local myFarm = FindFarmByLocation()
                 if not myFarm then task.wait(5); continue end
                 local objectsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Objects_Physical")
-                if not objectsFolder then task.wait(5); continue end
+                local plantsFolder = myFarm:FindFirstChild("Important", true) and myFarm.Important:FindFirstChild("Plants_Physical")
+                if not objectsFolder or not plantsFolder then task.wait(5); continue end
                 
                 UpdateButtonState("Checking Eggs")
                 local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
@@ -331,6 +318,13 @@ do
                             end
                             task.wait(1)
                             RunAutoSeller()
+                            
+                            while CountBoneBlossoms() < 100 and isEnabled do
+                                UpdateButtonState("Harvesting (" .. CountBoneBlossoms() .. "/100)")
+                                RunAutoHarvester(plantsFolder)
+                                task.wait(5)
+                            end
+
                             continue
                         end
                     end
@@ -365,7 +359,7 @@ do
         local corner_pet = Instance.new("UICorner", PetSettingsButton); corner_pet.CornerRadius = UDim.new(0, 6)
         
         local SettingsFrame = Instance.new("Frame", screenGui)
-        SettingsFrame.Size = UDim2.new(0, 220, 0, 260); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -130)
+        SettingsFrame.Size = UDim2.new(0, 220, 0, 220); SettingsFrame.Position = UDim2.new(0.5, -110, 0.5, -110)
         SettingsFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); SettingsFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); SettingsFrame.BorderSizePixel = 2
         SettingsFrame.Visible = false
         local corner_settings = Instance.new("UICorner", SettingsFrame); corner_settings.CornerRadius = UDim.new(0, 8)
@@ -384,11 +378,8 @@ do
 
         local EggSettingsButton = Instance.new("TextButton", SettingsFrame); EggSettingsButton.Size = UDim2.new(0.9, 0, 0, 35); EggSettingsButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); EggSettingsButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSettingsButton.Font = Enum.Font.SourceSansBold; EggSettingsButton.Text = "Egg Placement Priority"; EggSettingsButton.TextSize = 16; EggSettingsButton.LayoutOrder = 4
         local corner_egg = Instance.new("UICorner", EggSettingsButton); corner_egg.CornerRadius = UDim.new(0, 6)
-        
-        local RecipesButton = Instance.new("TextButton", SettingsFrame); RecipesButton.Size = UDim2.new(0.9, 0, 0, 35); RecipesButton.BackgroundColor3 = Color3.fromRGB(70, 90, 180); RecipesButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipesButton.Font = Enum.Font.SourceSansBold; RecipesButton.Text = "Recipes"; RecipesButton.TextSize = 16; RecipesButton.LayoutOrder = 5
-        local corner_recipe = Instance.new("UICorner", RecipesButton); corner_recipe.CornerRadius = UDim.new(0, 6)
 
-        local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 6
+        local SaveButton = Instance.new("TextButton", SettingsFrame); SaveButton.Size = UDim2.new(0.9, 0, 0, 35); SaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); SaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); SaveButton.Font = Enum.Font.SourceSansBold; SaveButton.Text = "Save & Close"; SaveButton.TextSize = 16; SaveButton.LayoutOrder = 5
         local corner_save = Instance.new("UICorner", SaveButton); corner_save.CornerRadius = UDim.new(0, 6)
 
         local PetCategoryMenu = Instance.new("Frame", screenGui); PetCategoryMenu.Size = UDim2.new(0, 200, 0, 250); PetCategoryMenu.Position = UDim2.new(0.5, -100, 0.5, -125); PetCategoryMenu.BackgroundColor3 = Color3.fromRGB(55, 55, 55); PetCategoryMenu.BorderColor3 = Color3.fromRGB(150, 150, 150); PetCategoryMenu.BorderSizePixel = 2; PetCategoryMenu.Visible = false
@@ -397,7 +388,7 @@ do
         local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         
         local subMenus = {}
-        for categoryName, petList in pairs(UniquePetCategoryData) do
+        for categoryName, petList in pairs(FarmModule.PetCategoryData) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
             local title = Instance.new("TextLabel", frame); title.Size = UDim2.new(1, 0, 0, 30); title.Text = categoryName; title.BackgroundColor3 = Color3.fromRGB(70, 70, 70); title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.SourceSansBold; title.TextSize = 16
             local scroll = Instance.new("ScrollingFrame", frame); scroll.Size = UDim2.new(1, 0, 1, -75); scroll.Position = UDim2.new(0, 0, 0, 30); scroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); scroll.BorderSizePixel = 0; scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); scroll.ScrollBarThickness = 6
@@ -415,7 +406,7 @@ do
             subMenus[categoryName] = frame
         end
         
-        for categoryName, _ in pairs(UniquePetCategoryData) do
+        for categoryName, _ in pairs(FarmModule.PetCategoryData) do
             local catButton = Instance.new("TextButton", PetCategoryScroll)
             catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
             catButton.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; subMenus[categoryName].Visible = true end)
@@ -449,28 +440,10 @@ do
         local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
         EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then config.targetEggCount = newCount end; SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; needsEggCheck = true end)
 
-        local RecipeFrame = Instance.new("Frame", screenGui); RecipeFrame.Size = UDim2.new(0, 220, 0, 280); RecipeFrame.Position = UDim2.new(0.5, -110, 0.5, -140); RecipeFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); RecipeFrame.BorderSizePixel = 2; RecipeFrame.Visible = false
-        local RecipeTitle = Instance.new("TextLabel", RecipeFrame); RecipeTitle.Size = UDim2.new(1, 0, 0, 30); RecipeTitle.Text = "Recipes"; RecipeTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); RecipeTitle.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeTitle.Font = Enum.Font.SourceSansBold; RecipeTitle.TextSize = 16
-        local RecipeList = Instance.new("ScrollingFrame", RecipeFrame); RecipeList.Size = UDim2.new(1, 0, 1, -75); RecipeList.Position = UDim2.new(0, 0, 0, 30); RecipeList.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeList.BorderSizePixel = 0; RecipeList.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); RecipeList.ScrollBarThickness = 6
-        local recipeListLayout = Instance.new("UIListLayout", RecipeList); recipeListLayout.Padding = UDim.new(0, 5); recipeListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        
-        local function redrawRecipeList()
-            for _, v in ipairs(RecipeList:GetChildren()) do v:Destroy() end
-            local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
-            for recipeName, _ in pairs(UniqueRecipeDatabase) do
-                local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName
-                if recipeName == config.activeRecipe then recipeButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end
-                recipeButton.MouseButton1Click:Connect(function() config.activeRecipe = recipeName; redrawRecipeList() end)
-            end
-        end
-        local RecipeBackButton = Instance.new("TextButton", RecipeFrame); RecipeBackButton.Size = UDim2.new(0.9, 0, 0, 35); RecipeBackButton.Position = UDim2.new(0.05, 0, 1, -40); RecipeBackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); RecipeBackButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeBackButton.Font = Enum.Font.SourceSansBold; RecipeBackButton.Text = "Back"; RecipeBackButton.TextSize = 16
-        RecipeBackButton.MouseButton1Click:Connect(function() SaveConfig(); RecipeFrame.Visible = false; SettingsFrame.Visible = true end)
-
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then config.maxWeightToSell = newWeight end; SaveConfig(); SettingsFrame.Visible = false; RunAutoSeller() end)
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
-        RecipesButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawRecipeList(); RecipeFrame.Visible = true end)
         
         mainButton.MouseButton1Click:Connect(function() Toggle() end)
         resetButton.MouseButton1Click:Connect(function() ResetConfig() end)
