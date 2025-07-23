@@ -52,7 +52,6 @@ do
         }
     }
     
-    -- CORRECTED: Renamed to avoid conflicts
     FarmModule.PetCategoryData = {
         ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
         ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
@@ -248,7 +247,7 @@ do
                         for _, t in ipairs(self.Character:GetChildren()) do if t:IsA("Tool") then t.Parent = self.Backpack end end
                         tool.Parent = self.Character; task.wait(0.3)
                         local uuid = tool:GetAttribute("c")
-                        if uuid then self.CraftingService:FireServer("InputItem", DinoTable, recipeData.Workbench, i, { ItemType = ingredient.ItemType, ItemData = { UUID = uuid } }) end
+                        if uuid then self.CraftingService:FireServer("InputItem", DinoTable, "DinoEventWorkbench", i, { ItemType = ingredient.ItemType, ItemData = { UUID = uuid } }) end
                         tool.Parent = self.Backpack; break
                     end
                 end
@@ -356,7 +355,8 @@ do
         local PetCategoryLayout = Instance.new("UIListLayout", PetCategoryScroll); PetCategoryLayout.Padding = UDim.new(0, 5); PetCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         
         local subMenus = {}
-        for categoryName, petList in pairs(self.petCategories) do
+        -- CORRECTED: Use the renamed variable here
+        for categoryName, petList in pairs(self.PetCategoryData) do
             local frame = Instance.new("Frame", screenGui); frame.Size = UDim2.new(0, 200, 0, 250); frame.Position = UDim2.new(0.5, -100, 0.5, -125); frame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); frame.BorderColor3 = Color3.fromRGB(150, 150, 150); frame.BorderSizePixel = 2; frame.Visible = false
             local title = Instance.new("TextLabel", frame); title.Size = UDim2.new(1, 0, 0, 30); title.Text = categoryName; title.BackgroundColor3 = Color3.fromRGB(70, 70, 70); title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.SourceSansBold; title.TextSize = 16
             local scroll = Instance.new("ScrollingFrame", frame); scroll.Size = UDim2.new(1, 0, 1, -75); scroll.Position = UDim2.new(0, 0, 0, 30); scroll.BackgroundColor3 = Color3.fromRGB(55, 55, 55); scroll.BorderSizePixel = 0; scroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); scroll.ScrollBarThickness = 6
@@ -374,7 +374,8 @@ do
             subMenus[categoryName] = frame
         end
         
-        for categoryName, _ in pairs(self.petCategories) do
+        -- CORRECTED: Use the renamed variable here too
+        for categoryName, _ in pairs(self.PetCategoryData) do
             local catButton = Instance.new("TextButton", PetCategoryScroll)
             catButton.Size = UDim2.new(0.9, 0, 0, 30); catButton.Text = categoryName; catButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
             catButton.MouseButton1Click:Connect(function() PetCategoryMenu.Visible = false; subMenus[categoryName].Visible = true end)
