@@ -31,7 +31,7 @@ do
     --================================================================================--
     --                         Configuration & State
     --================================================================================--
-    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v16_HatchFix.json"
+    FarmModule.CONFIG_FILE_NAME = "CombinedFarmAndSeller_v17_NameFix.json"
     FarmModule.isEnabled = false
     FarmModule.mainThread = nil
     FarmModule.placedPositions = {}
@@ -52,7 +52,8 @@ do
         }
     }
     
-    FarmModule.petCategories = {
+    -- CORRECTED: Renamed to avoid conflicts
+    FarmModule.PetCategoryData = {
         ["Primal Egg Pets"] = {"Parasaurolophus", "Iguanodon", "Pachycephalosaurus", "Dilophosaurus", "Ankylosaurus"},
         ["Dinosaur Egg Pets"] = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl"},
         ["Zen Egg Pets"] = {"Shiba Inu", "Nihonzaru", "Tanuki", "Tanchozuru", "Kappa"},
@@ -270,7 +271,6 @@ do
             local allEggs = {}; for _, obj in ipairs(objectsFolder:GetChildren()) do if obj:IsA("Model") and obj:GetAttribute(self.EGG_UUID_ATTRIBUTE) then table.insert(allEggs, obj) end end
             local readyCount = 0; for _, egg in ipairs(allEggs) do if egg:GetAttribute("TimeToHatch") == 0 then readyCount = readyCount + 1 end end
             
-            -- CORRECTED: Use the configured targetEggCount instead of a hardcoded 8
             if #allEggs >= self.config.targetEggCount and readyCount == #allEggs then
                 self:UpdateButtonState("Hatching " .. readyCount)
                 for _, eggToHatch in ipairs(allEggs) do
@@ -408,24 +408,10 @@ do
         local EggSaveButton = Instance.new("TextButton", EggFrame); EggSaveButton.Size = UDim2.new(0.9, 0, 0, 35); EggSaveButton.Position = UDim2.new(0.05, 0, 1, -40); EggSaveButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200); EggSaveButton.TextColor3 = Color3.fromRGB(255, 255, 255); EggSaveButton.Font = Enum.Font.SourceSansBold; EggSaveButton.Text = "Save & Close"; EggSaveButton.TextSize = 16
         EggSaveButton.MouseButton1Click:Connect(function() local newCount = tonumber(TargetCountInput.Text); if newCount then self.config.targetEggCount = newCount end; self:SaveConfig(); EggFrame.Visible = false; SettingsFrame.Visible = true; self.needsEggCheck = true end)
 
-        local RecipeFrame = Instance.new("Frame", screenGui); RecipeFrame.Size = UDim2.new(0, 220, 0, 280); RecipeFrame.Position = UDim2.new(0.5, -110, 0.5, -140); RecipeFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeFrame.BorderColor3 = Color3.fromRGB(150, 150, 150); RecipeFrame.BorderSizePixel = 2; RecipeFrame.Visible = false
-        local RecipeTitle = Instance.new("TextLabel", RecipeFrame); RecipeTitle.Size = UDim2.new(1, 0, 0, 30); RecipeTitle.Text = "Recipes"; RecipeTitle.BackgroundColor3 = Color3.fromRGB(70, 70, 70); RecipeTitle.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeTitle.Font = Enum.Font.SourceSansBold; RecipeTitle.TextSize = 16
-        local RecipeList = Instance.new("ScrollingFrame", RecipeFrame); RecipeList.Size = UDim2.new(1, 0, 1, -75); RecipeList.Position = UDim2.new(0, 0, 0, 30); RecipeList.BackgroundColor3 = Color3.fromRGB(55, 55, 55); RecipeList.BorderSizePixel = 0; RecipeList.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120); RecipeList.ScrollBarThickness = 6
-        local recipeListLayout = Instance.new("UIListLayout", RecipeList); recipeListLayout.Padding = UDim.new(0, 5); recipeListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. self.config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
-        
-        for recipeName, recipeData in pairs(self.Recipes) do
-            local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName; recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-            recipeButton.MouseButton1Click:Connect(function() self.config.activeRecipe = recipeName; activeRecipeLabel.Text = "Active: " .. recipeName; self:SaveConfig() end)
-        end
-        local RecipeBackButton = Instance.new("TextButton", RecipeFrame); RecipeBackButton.Size = UDim2.new(0.9, 0, 0, 35); RecipeBackButton.Position = UDim2.new(0.05, 0, 1, -40); RecipeBackButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100); RecipeBackButton.TextColor3 = Color3.fromRGB(255, 255, 255); RecipeBackButton.Font = Enum.Font.SourceSansBold; RecipeBackButton.Text = "Back"; RecipeBackButton.TextSize = 16
-        RecipeBackButton.MouseButton1Click:Connect(function() RecipeFrame.Visible = false; SettingsFrame.Visible = true end)
-
         PetSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = not SettingsFrame.Visible end)
         SaveButton.MouseButton1Click:Connect(function() local newWeight = tonumber(MaxWeightInput.Text); if newWeight then self.config.maxWeightToSell = newWeight end; self:SaveConfig(); SettingsFrame.Visible = false; self:RunAutoSeller() end)
         SelectPetsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; PetCategoryMenu.Visible = true end)
         EggSettingsButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; redrawEggPriorityList(); EggFrame.Visible = true end)
-        RecipesButton.MouseButton1Click:Connect(function() SettingsFrame.Visible = false; RecipeFrame.Visible = true end)
         
         mainButton.MouseButton1Click:Connect(function() self:Toggle() end)
         resetButton.MouseButton1Click:Connect(function() self:ResetConfig() end)
@@ -462,7 +448,7 @@ do
     FarmModule:UpdateButtonState()
     FarmModule:UpdateGUIVisibility()
     if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() FarmModule:RunMasterLoop() end)
+        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
     end
 
     print("Combined Auto-Farm & Crafter (Final) loaded.")
