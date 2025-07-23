@@ -456,7 +456,7 @@ do
         local function redrawRecipeList()
             for _, v in ipairs(RecipeList:GetChildren()) do v:Destroy() end
             local activeRecipeLabel = Instance.new("TextLabel", RecipeList); activeRecipeLabel.Size = UDim2.new(0.9, 0, 0, 20); activeRecipeLabel.Text = "Active: " .. self.config.activeRecipe; activeRecipeLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); activeRecipeLabel.TextColor3 = Color3.fromRGB(200, 200, 0); activeRecipeLabel.Font = Enum.Font.SourceSans; activeRecipeLabel.TextSize = 14
-            for recipeName, _ in pairs(self.UniqueRecipeDatabase) do
+            for recipeName, _ in pairs(self.MyRecipeDatabase_v20) do
                 local recipeButton = Instance.new("TextButton", RecipeList); recipeButton.Size = UDim2.new(0.9, 0, 0, 30); recipeButton.Text = recipeName
                 if recipeName == self.config.activeRecipe then recipeButton.BackgroundColor3 = Color3.fromRGB(20, 140, 70) else recipeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80) end
                 recipeButton.MouseButton1Click:Connect(function() self.config.activeRecipe = recipeName; redrawRecipeList() end)
@@ -492,22 +492,4 @@ do
         print("✅ Config cleared. Please restart the script or toggle the main button.")
         if self.isEnabled then
             self.isEnabled = false
-            if self.mainThread then task.cancel(self.mainThread); self.mainThread = nil end
-            self:UpdateButtonState()
-            self:UpdateGUIVisibility()
-        end
-    end
-    
-    if FarmModule.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then
-        FarmModule.PlayerGui.CombinedFarmCraftGui:Destroy()
-    end
-    FarmModule:LoadConfig()
-    FarmModule:CreateGUI()
-    FarmModule:UpdateButtonState()
-    FarmModule:UpdateGUIVisibility()
-    if FarmModule.isEnabled then
-        FarmModule.mainThread = task.spawn(function() self:RunMasterLoop() end)
-    end
-
-    print("Combined Auto-Farm & Crafter (Final) loaded.")
-end
+            if self.mainThread then task.cancel(s
