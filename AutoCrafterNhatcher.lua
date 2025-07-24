@@ -124,11 +124,12 @@ function M:Craft()
         for _,t in ipairs(self.Backpack:GetChildren()) do
             if t:IsA("Tool") and t:GetAttribute("h")=="Dinosaur Egg" then
                 local initialCount = t:GetAttribute("e") or -1
-                humanoid:EquipTool(t); task.wait(0.3)
+                -- CORRECTED: Use the more robust equip-unequip-re-equip logic
+                humanoid:EquipTool(t); task.wait(0.2); humanoid:UnequipTools(); task.wait(0.2); humanoid:EquipTool(t); task.wait(0.3)
+                
                 if t.Parent == self.Character then
                     if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end
                     
-                    -- NEW: Intelligent wait loop
                     local waitedTime = 0
                     while waitedTime < 2 do
                         local newCount = t:GetAttribute("e") or -2
