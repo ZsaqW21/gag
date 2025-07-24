@@ -5,7 +5,7 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v24_OptimizedCraft.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v21_CraftFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4, targetCount = 3, hatchFailsafeActive = false,
     sell = {
@@ -140,6 +140,7 @@ function M:Craft()
         local blossomSuccess = false
         for _,t in ipairs(self.Backpack:GetChildren()) do
             if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then
+                -- CORRECTED: Implement the equip-unequip-re-equip logic
                 humanoid:EquipTool(t); task.wait(0.1); humanoid:UnequipTools(); task.wait(0.1); humanoid:EquipTool(t); task.wait(0.3)
                 
                 if t.Parent == self.Character then
