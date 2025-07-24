@@ -137,9 +137,33 @@ function M:Craft()
 
         if not dinoEggSuccess then error("Failed to input Dinosaur Egg. Cancelling.") end
 
-        for _,t in ipairs(self.Backpack:GetChildren()) do if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then for _,c in ipairs(self.Character:GetChildren()) do if c:IsA("Tool") then c.Parent=self.Backpack end end; t.Parent=self.Character; task.wait(0.3); if t.Parent == self.Character then if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",2,{ItemType="Holdable",ItemData={UUID=t:GetAttribute("c")}}) end end; t.Parent=self.Backpack; break end end
-        task.wait(0.3)
+        local blossomSuccess = false
+        for _,t in ipairs(self.Backpack:GetChildren()) do
+            if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then
+                for _,c in ipairs(self.Character:GetChildren()) do if c:IsA("Tool") then c.Parent=self.Backpack end end
+                t.Parent=self.Character
+                
+                -- NEW: Verification loop for Bone Blossom
+                for attempt = 1, 10 do
+                    if t.Parent == self.Character then
+                        blossomSuccess = true
+                        break
+                    end
+                    task.wait(0.1)
+                end
+
+                if blossomSuccess then
+                    if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",2,{ItemType="Holdable",ItemData={UUID=t:GetAttribute("c")}}) end
+                else
+                    warn("Failed to equip Bone Blossom.")
+                end
+                t.Parent=self.Backpack; break
+            end
+        end
         
+        if not blossomSuccess then error("Failed to input Bone Blossom. Cancelling.") end
+
+        task.wait(0.3)
         self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
         task.wait(1)
         self.TeleportService:Teleport(game.PlaceId)
