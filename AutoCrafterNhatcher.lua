@@ -246,11 +246,11 @@ end
 function M:Toggle()
     self.enabled=not self.enabled; self:UpdateState(); self:UpdateVis()
     if self.enabled then
-        self.cfg.hatchFailsafeActive = false -- CORRECTED: Reset failsafe when toggled ON
+        self.cfg.hatchFailsafeActive = false
         self:Save(); self.thread=task.spawn(function() self:Loop() end)
     else
         if self.thread then task.cancel(self.thread); self.thread=nil end
-        self.cfg.hatchFailsafeActive = false -- Also reset when toggled OFF
+        self.cfg.hatchFailsafeActive = false
         self:Save()
     end
 end
