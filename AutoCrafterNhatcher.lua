@@ -1,4 +1,4 @@
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
 do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
@@ -217,4 +217,54 @@ function M:Create()
     for n,_ in pairs(M.petCats) do local b=Instance.new("TextButton",pcs); b.Size=UDim2.new(0.9,0,0,30); b.Text=n; b.BackgroundColor3=Color3.fromRGB(80,80,80); b.MouseButton1Click:Connect(function() pcm.Visible=false; sm[n].Visible=true end) end
     local cbb=Instance.new("TextButton",pcm); cbb.Size=UDim2.new(0.9,0,0,35); cbb.Position=UDim2.new(0.05,0,1,-40); cbb.BackgroundColor3=Color3.fromRGB(100,100,100); cbb.TextColor3=Color3.fromRGB(255,255,255); cbb.Font=Enum.Font.SourceSansBold; cbb.Text="Back"; cbb.TextSize=16
     cbb.MouseButton1Click:Connect(function() pcm.Visible=false; sf.Visible=true end)
-    local ef=Instance.new("Frame",gui);
+    local ef=Instance.new("Frame",gui); ef.Size=UDim2.new(0,220,0,320); ef.Position=UDim2.new(0.5,-110,0.5,-160); ef.BackgroundColor3=Color3.fromRGB(55,55,55); ef.BorderColor3=Color3.fromRGB(150,150,150); ef.BorderSizePixel=2; ef.Visible=false
+    local et=Instance.new("TextLabel",ef); et.Size=UDim2.new(1,0,0,30); et.Text="Egg Placement Priority"; et.BackgroundColor3=Color3.fromRGB(70,70,70); et.TextColor3=Color3.fromRGB(255,255,255); et.Font=Enum.Font.SourceSansBold; et.TextSize=16
+    local tcl=Instance.new("TextLabel",ef); tcl.Size=UDim2.new(0.9,0,0,20); tcl.Position=UDim2.new(0.05,0,0,35); tcl.Text="Target Egg Count:"; tcl.BackgroundColor3=Color3.fromRGB(55,55,55); tcl.TextColor3=Color3.fromRGB(220,220,220); tcl.Font=Enum.Font.SourceSans; tcl.TextSize=14; tcl.TextXAlignment=Enum.TextXAlignment.Left
+    local tci=Instance.new("TextBox",ef); tci.Size=UDim2.new(0.9,0,0,30); tci.Position=UDim2.new(0.05,0,0,55); tci.BackgroundColor3=Color3.fromRGB(40,40,40); tci.TextColor3=Color3.fromRGB(255,255,255); tci.Font=Enum.Font.SourceSansBold; tci.TextSize=14; tci.Text=tostring(M.cfg.targetCount)
+    local es=Instance.new("ScrollingFrame",ef); es.Size=UDim2.new(1,0,1,-130); es.Position=UDim2.new(0,0,0,90); es.BackgroundColor3=Color3.fromRGB(55,55,55); es.BorderSizePixel=0; es.ScrollBarImageColor3=Color3.fromRGB(120,120,120); es.ScrollBarThickness=6
+    local el=Instance.new("UIListLayout",es); el.Padding=UDim.new(0,5); el.HorizontalAlignment=Enum.HorizontalAlignment.Center
+    local function redraw() for _,v in ipairs(es:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end; local h=5
+        for i,n in ipairs(M.cfg.priority) do
+            local f=Instance.new("Frame",es); f.Size=UDim2.new(0.9,0,0,30); f.BackgroundColor3=Color3.fromRGB(40,40,40)
+            local l=Instance.new("TextLabel",f); l.Size=UDim2.new(1,-60,1,0); l.Text=i..". "..n; l.BackgroundColor3=Color3.fromRGB(40,40,40); l.TextColor3=Color3.fromRGB(255,255,255); l.Font=Enum.Font.SourceSans; l.TextSize=14; l.TextXAlignment=Enum.TextXAlignment.Left
+            local u=Instance.new("TextButton",f); u.Size=UDim2.new(0,25,1,0); u.Position=UDim2.new(1,-55,0,0); u.Text="▲"; u.BackgroundColor3=Color3.fromRGB(80,80,80)
+            local d=Instance.new("TextButton",f); d.Size=UDim2.new(0,25,1,0); d.Position=UDim2.new(1,-25,0,0); d.Text="▼"; d.BackgroundColor3=Color3.fromRGB(80,80,80)
+            u.MouseButton1Click:Connect(function() if i>1 then local t=M.cfg.priority[i]; M.cfg.priority[i]=M.cfg.priority[i-1]; M.cfg.priority[i-1]=t; redraw() end end)
+            d.MouseButton1Click:Connect(function() if i<#M.cfg.priority then local t=M.cfg.priority[i]; M.cfg.priority[i]=M.cfg.priority[i+1]; M.cfg.priority[i+1]=t; redraw() end end)
+            h=h+35
+        end; es.CanvasSize=UDim2.new(0,0,0,h)
+    end
+    local esv=Instance.new("TextButton",ef); esv.Size=UDim2.new(0.9,0,0,35); esv.Position=UDim2.new(0.05,0,1,-40); esv.BackgroundColor3=Color3.fromRGB(80,120,200); esv.TextColor3=Color3.fromRGB(255,255,255); esv.Font=Enum.Font.SourceSansBold; esv.Text="Save & Close"; esv.TextSize=16
+    esv.MouseButton1Click:Connect(function() local n=tonumber(tci.Text); if n then M.cfg.targetCount=n end; M:Save(); ef.Visible=false; sf.Visible=true; M.checkEggs=true end)
+    petBtn.MouseButton1Click:Connect(function() sf.Visible=not sf.Visible end)
+    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then M.cfg.maxWeight=n end; M:Save(); sf.Visible=false; M:SellPets() end)
+    spb.MouseButton1Click:Connect(function() sf.Visible=false; pcm.Visible=true end)
+    esb.MouseButton1Click:Connect(function() sf.Visible=false; redraw(); ef.Visible=true end)
+    btn.MouseButton1Click:Connect(function() M:Toggle() end)
+    rst.MouseButton1Click:Connect(function() M:ResetConfig() end)
+end
+function M:Toggle()
+    self.enabled=not self.enabled; self:UpdateState(); self:UpdateVis()
+    if self.enabled then
+        self.cfg.hatchFailsafeActive = false
+        self:Save(); self.thread=task.spawn(function() self:Loop() end)
+    else
+        if self.thread then task.cancel(self.thread); self.thread=nil end
+        self.cfg.hatchFailsafeActive = false
+        self:Save()
+    end
+end
+function M:ResetConfig()
+    print("Resetting config file...")
+    pcall(function() writefile(self.CFG_FILE,self.HttpService:JSONEncode({})) end)
+    print("✅ Config cleared. Please restart or toggle.")
+    if self.enabled then self.enabled=false; if self.thread then task.cancel(self.thread); self.thread=nil end; self:UpdateState(); self:UpdateVis() end
+end
+if M.PlayerGui:FindFirstChild("CombinedFarmCraftGui") then M.PlayerGui.CombinedFarmCraftGui:Destroy() end
+M:Load()
+M:Create()
+M:UpdateState()
+M:UpdateVis()
+if M.enabled then M.thread=task.spawn(function() M:Loop() end) end
+print("Combined Auto-Farm & Crafter (Final) loaded.")
+end
