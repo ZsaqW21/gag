@@ -1,4 +1,4 @@
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
 do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
@@ -140,7 +140,7 @@ function M:Craft()
         local blossomSuccess = false
         for _,t in ipairs(self.Backpack:GetChildren()) do
             if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then
-                humanoid:EquipTool(t); task.wait(0.2); humanoid:UnequipTools(); task.wait(0.2); humanoid:EquipTool(t); task.wait(0.3)
+                humanoid:EquipTool(t); task.wait(0.1); humanoid:UnequipTools(); task.wait(0.1); humanoid:EquipTool(t); task.wait(0.3)
                 
                 if t.Parent == self.Character then
                     blossomSuccess = true
