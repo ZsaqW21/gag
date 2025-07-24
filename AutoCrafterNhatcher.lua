@@ -1,11 +1,11 @@
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
 do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v21_CraftFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v23_SmartWait.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4, targetCount = 3, hatchFailsafeActive = false,
     sell = {
@@ -127,21 +127,31 @@ function M:Craft()
                 humanoid:EquipTool(t); task.wait(0.3)
                 if t.Parent == self.Character then
                     if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end
-                    task.wait(0.2)
-                    local newCount = t:GetAttribute("e") or -2
-                    if newCount < initialCount then dinoEggSuccess = true end
+                    
+                    -- NEW: Intelligent wait loop
+                    local waitedTime = 0
+                    while waitedTime < 2 do
+                        local newCount = t:GetAttribute("e") or -2
+                        if newCount < initialCount then
+                            dinoEggSuccess = true
+                            break
+                        end
+                        task.wait(0.1)
+                        waitedTime = waitedTime + 0.1
+                    end
                 end
                 humanoid:UnequipTools(); break
             end
         end
 
         if not dinoEggSuccess then error("Failed to input Dinosaur Egg. Cancelling.") end
+        
+        task.wait(0.5)
 
         local blossomSuccess = false
         for _,t in ipairs(self.Backpack:GetChildren()) do
             if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then
-                -- CORRECTED: Implement the equip-unequip-re-equip logic
-                humanoid:EquipTool(t); task.wait(0.1); humanoid:UnequipTools(); task.wait(0.1); humanoid:EquipTool(t); task.wait(0.3)
+                humanoid:EquipTool(t); task.wait(0.2); humanoid:UnequipTools(); task.wait(0.2); humanoid:EquipTool(t); task.wait(0.3)
                 
                 if t.Parent == self.Character then
                     blossomSuccess = true
