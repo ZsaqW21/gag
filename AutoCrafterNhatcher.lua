@@ -1,11 +1,11 @@
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1.5)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
 do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v19_AttributeFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v20_CraftFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4, targetCount = 3, hatchFailsafeActive = false,
     sell = {
@@ -111,6 +111,12 @@ end
 function M:Craft()
     local s,e=pcall(function()
         self:UpdateState("Crafting")
+
+        -- CORRECTED: Unequip any held tools before starting the craft cycle
+        local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid:UnequipTools() end
+        task.wait(0.2) -- Brief wait for unequip to register
+
         local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
         if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
         local dt=self.Workspace:WaitForChild("DinoEvent",5):WaitForChild("DinoCraftingTable",5)
@@ -120,7 +126,6 @@ function M:Craft()
         local dinoEggSuccess = false
         for _,t in ipairs(self.Backpack:GetChildren()) do
             if t:IsA("Tool") and t:GetAttribute("h")=="Dinosaur Egg" then
-                -- CORRECTED: Use the 'e' attribute for a reliable count
                 local initialCount = t:GetAttribute("e") or -1
                 t.Parent=self.Character; task.wait(0.3)
                 if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end
