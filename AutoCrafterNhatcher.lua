@@ -1,4 +1,4 @@
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1.5)
 do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
