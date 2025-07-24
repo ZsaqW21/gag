@@ -5,7 +5,7 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v20_CraftFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v21_CraftFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4, targetCount = 3, hatchFailsafeActive = false,
     sell = {
@@ -111,11 +111,8 @@ end
 function M:Craft()
     local s,e=pcall(function()
         self:UpdateState("Crafting")
-
-        -- CORRECTED: Unequip any held tools before starting the craft cycle
         local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then humanoid:UnequipTools() end
-        task.wait(0.2) -- Brief wait for unequip to register
+        if humanoid then humanoid:UnequipTools() end; task.wait(0.2)
 
         local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
         if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
@@ -128,21 +125,19 @@ function M:Craft()
             if t:IsA("Tool") and t:GetAttribute("h")=="Dinosaur Egg" then
                 local initialCount = t:GetAttribute("e") or -1
                 t.Parent=self.Character; task.wait(0.3)
-                if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end
-                task.wait(0.2)
-                local newCount = t:GetAttribute("e") or -2
-                if newCount < initialCount then
-                    dinoEggSuccess = true
+                if t.Parent == self.Character then
+                    if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",1,{ItemType="PetEgg",ItemData={UUID=t:GetAttribute("c")}}) end
+                    task.wait(0.2)
+                    local newCount = t:GetAttribute("e") or -2
+                    if newCount < initialCount then dinoEggSuccess = true end
                 end
                 t.Parent=self.Backpack; break
             end
         end
 
-        if not dinoEggSuccess then
-            error("Failed to input Dinosaur Egg. Cancelling.")
-        end
+        if not dinoEggSuccess then error("Failed to input Dinosaur Egg. Cancelling.") end
 
-        for _,t in ipairs(self.Backpack:GetChildren()) do if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then for _,c in ipairs(self.Character:GetChildren()) do if c:IsA("Tool") then c.Parent=self.Backpack end end; t.Parent=self.Character; task.wait(0.3); if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",2,{ItemType="Holdable",ItemData={UUID=t:GetAttribute("c")}}) end; t.Parent=self.Backpack; break end end
+        for _,t in ipairs(self.Backpack:GetChildren()) do if t:IsA("Tool") and t:GetAttribute("f")=="Bone Blossom" and not t.Name:find("Seed") then for _,c in ipairs(self.Character:GetChildren()) do if c:IsA("Tool") then c.Parent=self.Backpack end end; t.Parent=self.Character; task.wait(0.3); if t.Parent == self.Character then if t:GetAttribute("c") then self.CraftingService:FireServer("InputItem",dt,"DinoEventWorkbench",2,{ItemType="Holdable",ItemData={UUID=t:GetAttribute("c")}}) end end; t.Parent=self.Backpack; break end end
         task.wait(0.3)
         
         self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
@@ -152,9 +147,7 @@ function M:Craft()
     if not s then
         warn("Craft Error:",e,"-- Cancelling and restarting cycle.")
         local dt = self.Workspace:FindFirstChild("DinoEvent", 5) and self.Workspace.DinoEvent:FindFirstChild("DinoCraftingTable", 5)
-        if dt then
-            self.CraftingService:FireServer("Cancel", dt, "DinoEventWorkbench")
-        end
+        if dt then self.CraftingService:FireServer("Cancel", dt, "DinoEventWorkbench") end
         self.checkEggs = true
     end
 end
