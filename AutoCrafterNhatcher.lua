@@ -1,5 +1,5 @@
 -- Wait for the game to fully load
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
 
 -- Add a singleton check to prevent multiple instances and memory leaks
 if _G.MyCombinedFarmScriptIsRunning then
@@ -14,15 +14,19 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v25_SyncCheck.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v26_RarePets.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
-    maxWeight = 4, targetCount = 3, hatchFailsafeActive = false, cycleCounter = 0,
+    maxWeight = 4,
+    maxWeightRare = 10, -- NEW: Separate weight filter for rare pets
+    targetCount = 3, hatchFailsafeActive = false,
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
         ["Tanuki"]=false,["Tanchozuru"]=false,["Kappa"]=false,["Ostrich"]=false,["Peacock"]=false,["Capybara"]=false,
         ["Scarlet Macaw"]=false,["Caterpillar"]=false,["Snail"]=false,["Giant Ant"]=false,["Praying Mantis"]=false,
         ["Grey Mouse"]=false,["Brown Mouse"]=false,["Squirrel"]=false,["Red Giant Ant"]=false,
+        -- NEW: Rare pets added
+        ["Brontosaurus"]=false, ["Spinosaurus"]=false, ["T-Rex"]=false, ["Mimic Octopus"]=false, ["Dragonfly"]=false, ["Red Fox"]=false,
     },
     priority = {"Primal Egg","Dinosaur Egg","Zen Egg","Paradise Egg","Bug Egg","Mythical Egg"}
 }
@@ -32,14 +36,15 @@ M.petCats = {
     ["Zen"]={"Shiba Inu","Nihonzaru","Tanuki","Tanchozuru","Kappa"},
     ["Paradise"]={"Ostrich","Peacock","Capybara","Scarlet Macaw"},
     ["Bug"]={"Caterpillar","Snail","Giant Ant","Praying Mantis"},
-    ["Mythical"]={"Grey Mouse","Brown Mouse","Squirrel","Red Giant Ant"}
+    ["Mythical"]={"Grey Mouse","Brown Mouse","Squirrel","Red Giant Ant"},
+    ["Rare Pets"]={"Brontosaurus", "Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"} -- NEW: Rare pet category
 }
 M.EGG_UUID = "OBJECT_UUID"; M.PLACE_ATTR = "h"; M.MIN_DIST = 5
 M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, cycleCounter=self.cfg.cycleCounter}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -48,7 +53,7 @@ function M:Load()
     if s and f then
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
-            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false; self.cfg.cycleCounter = d.cycleCounter or 0
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
@@ -100,7 +105,10 @@ function M:SellPets()
                         local wS=i.Name:match("%[(%d+%.?%d*)%s*KG%]")
                         if wS then
                             local w=tonumber(wS)
-                            if w<self.cfg.maxWeight then
+                            local isRare = false
+                            for _, rarePetName in ipairs(self.petCats["Rare Pets"]) do if n == rarePetName then isRare = true; break end end
+                            local weightLimit = isRare and self.cfg.maxWeightRare or self.cfg.maxWeight
+                            if w<weightLimit then
                                 local h=self.Character:FindFirstChildOfClass("Humanoid")
                                 if h then h:EquipTool(i); task.wait(0.5)
                                     if i.Parent==self.Character then self.SellPetRemote:FireServer(i); sold=sold+1; soldPass=true; task.wait(1); break
@@ -120,8 +128,6 @@ end
 function M:Craft()
     local s,e=pcall(function()
         self:UpdateState("Crafting")
-        self.cfg.cycleCounter = self.cfg.cycleCounter + 1
-        
         local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
         if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
         local dt=self.Workspace:WaitForChild("DinoEvent",5):WaitForChild("DinoCraftingTable",5)
@@ -168,33 +174,9 @@ function M:Craft()
         end
 
         task.wait(0.3)
-        
-        if self.cfg.cycleCounter % 3 == 0 then
-            print("Performing craft sync check...")
-            local sheckles = self.LocalPlayer.leaderstats.Sheckles
-            local initialSheckles = sheckles.Value
-            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
-            
-            local craftSuccess = false
-            local waitedTime = 0
-            while waitedTime < 2 do
-                if sheckles.Value ~= initialSheckles then craftSuccess = true; break end
-                task.wait(0.1); waitedTime = waitedTime + 0.1
-            end
-
-            if craftSuccess then
-                print("Craft successful. Teleporting.")
-                self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
-            else
-                warn("Craft failed (desync detected). Cancelling and restarting cycle.")
-                self.CraftingService:FireServer("Cancel", dt, "DinoEventWorkbench")
-                self.checkEggs = true
-            end
-        else
-            print("Craft cycle " .. self.cfg.cycleCounter .. ". Skipping sync check.")
-            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
-            self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
-        end
+        self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
+        task.wait(1)
+        self.TeleportService:Teleport(game.PlaceId)
     end)
     if not s then warn("Craft Error:",e,"-- Off."); self.enabled=false; self:UpdateState(); self:Save() end
 end
@@ -238,14 +220,16 @@ function M:Create()
     
     closeBtn=Instance.new("TextButton",gui); closeBtn.Name="CloseButton"; closeBtn.Text="Close Script"; closeBtn.TextSize=14; closeBtn.Font=Enum.Font.SourceSansBold; closeBtn.TextColor3=Color3.fromRGB(255,255,255); closeBtn.BackgroundColor3=Color3.fromRGB(180, 80, 80); closeBtn.Size=UDim2.new(0,100,0,30); closeBtn.Position=UDim2.new(1,-550,0,20); local c_close=Instance.new("UICorner",closeBtn); c_close.CornerRadius=UDim.new(0,6)
 
-    local sf=Instance.new("Frame",gui); sf.Size=UDim2.new(0,220,0,220); sf.Position=UDim2.new(0.5,-110,0.5,-110); sf.BackgroundColor3=Color3.fromRGB(55,55,55); sf.BorderColor3=Color3.fromRGB(150,150,150); sf.BorderSizePixel=2; sf.Visible=false; local c4=Instance.new("UICorner",sf); c4.CornerRadius=UDim.new(0,8)
+    local sf=Instance.new("Frame",gui); sf.Size=UDim2.new(0,220,0,260); sf.Position=UDim2.new(0.5,-110,0.5,-130); sf.BackgroundColor3=Color3.fromRGB(55,55,55); sf.BorderColor3=Color3.fromRGB(150,150,150); sf.BorderSizePixel=2; sf.Visible=false; local c4=Instance.new("UICorner",sf); c4.CornerRadius=UDim.new(0,8)
     local st=Instance.new("TextLabel",sf); st.Size=UDim2.new(1,0,0,30); st.Text="Main Settings"; st.BackgroundColor3=Color3.fromRGB(70,70,70); st.TextColor3=Color3.fromRGB(255,255,255); st.Font=Enum.Font.SourceSansBold; st.TextSize=16
     local ll=Instance.new("UIListLayout",sf); ll.Padding=UDim.new(0,10); ll.SortOrder=Enum.SortOrder.LayoutOrder; ll.HorizontalAlignment=Enum.HorizontalAlignment.Center
     local wl=Instance.new("TextLabel",sf); wl.Size=UDim2.new(0.9,0,0,20); wl.Text="Sell pets UNDER this KG:"; wl.BackgroundColor3=Color3.fromRGB(55,55,55); wl.TextColor3=Color3.fromRGB(220,220,220); wl.Font=Enum.Font.SourceSans; wl.TextSize=14; wl.LayoutOrder=1; wl.TextXAlignment=Enum.TextXAlignment.Left
     local wi=Instance.new("TextBox",sf); wi.Size=UDim2.new(0.9,0,0,30); wi.BackgroundColor3=Color3.fromRGB(40,40,40); wi.TextColor3=Color3.fromRGB(255,255,255); wi.Font=Enum.Font.SourceSansBold; wi.TextSize=14; wi.Text=tostring(M.cfg.maxWeight); wi.LayoutOrder=2
-    local spb=Instance.new("TextButton",sf); spb.Size=UDim2.new(0.9,0,0,35); spb.BackgroundColor3=Color3.fromRGB(70,90,180); spb.TextColor3=Color3.fromRGB(255,255,255); spb.Font=Enum.Font.SourceSansBold; spb.Text="Select Pets to Sell"; spb.TextSize=16; spb.LayoutOrder=3; local c5=Instance.new("UICorner",spb); c5.CornerRadius=UDim.new(0,6)
-    local esb=Instance.new("TextButton",sf); esb.Size=UDim2.new(0.9,0,0,35); esb.BackgroundColor3=Color3.fromRGB(70,90,180); esb.TextColor3=Color3.fromRGB(255,255,255); esb.Font=Enum.Font.SourceSansBold; esb.Text="Egg Placement Priority"; esb.TextSize=16; esb.LayoutOrder=4; local c6=Instance.new("UICorner",esb); c6.CornerRadius=UDim.new(0,6)
-    local svb=Instance.new("TextButton",sf); svb.Size=UDim2.new(0.9,0,0,35); svb.BackgroundColor3=Color3.fromRGB(80,120,200); svb.TextColor3=Color3.fromRGB(255,255,255); svb.Font=Enum.Font.SourceSansBold; svb.Text="Save & Close"; svb.TextSize=16; svb.LayoutOrder=5; local c7=Instance.new("UICorner",svb); c7.CornerRadius=UDim.new(0,6)
+    local wrl=Instance.new("TextLabel",sf); wrl.Size=UDim2.new(0.9,0,0,20); wrl.Text="Sell RARE pets UNDER this KG:"; wrl.BackgroundColor3=Color3.fromRGB(55,55,55); wrl.TextColor3=Color3.fromRGB(220,220,220); wrl.Font=Enum.Font.SourceSans; wrl.TextSize=14; wrl.LayoutOrder=3; wrl.TextXAlignment=Enum.TextXAlignment.Left
+    local wri=Instance.new("TextBox",sf); wri.Size=UDim2.new(0.9,0,0,30); wri.BackgroundColor3=Color3.fromRGB(40,40,40); wri.TextColor3=Color3.fromRGB(255,255,255); wri.Font=Enum.Font.SourceSansBold; wri.TextSize=14; wri.Text=tostring(M.cfg.maxWeightRare); wri.LayoutOrder=4
+    local spb=Instance.new("TextButton",sf); spb.Size=UDim2.new(0.9,0,0,35); spb.BackgroundColor3=Color3.fromRGB(70,90,180); spb.TextColor3=Color3.fromRGB(255,255,255); spb.Font=Enum.Font.SourceSansBold; spb.Text="Select Pets to Sell"; spb.TextSize=16; spb.LayoutOrder=5; local c5=Instance.new("UICorner",spb); c5.CornerRadius=UDim.new(0,6)
+    local esb=Instance.new("TextButton",sf); esb.Size=UDim2.new(0.9,0,0,35); esb.BackgroundColor3=Color3.fromRGB(70,90,180); esb.TextColor3=Color3.fromRGB(255,255,255); esb.Font=Enum.Font.SourceSansBold; esb.Text="Egg Placement Priority"; esb.TextSize=16; esb.LayoutOrder=6; local c6=Instance.new("UICorner",esb); c6.CornerRadius=UDim.new(0,6)
+    local svb=Instance.new("TextButton",sf); svb.Size=UDim2.new(0.9,0,0,35); svb.BackgroundColor3=Color3.fromRGB(80,120,200); svb.TextColor3=Color3.fromRGB(255,255,255); svb.Font=Enum.Font.SourceSansBold; svb.Text="Save & Close"; svb.TextSize=16; svb.LayoutOrder=7; local c7=Instance.new("UICorner",svb); c7.CornerRadius=UDim.new(0,6)
     local pcm=Instance.new("Frame",gui); pcm.Size=UDim2.new(0,200,0,250); pcm.Position=UDim2.new(0.5,-100,0.5,-125); pcm.BackgroundColor3=Color3.fromRGB(55,55,55); pcm.BorderColor3=Color3.fromRGB(150,150,150); pcm.BorderSizePixel=2; pcm.Visible=false
     local pct=Instance.new("TextLabel",pcm); pct.Size=UDim2.new(1,0,0,30); pct.Text="Pet Categories"; pct.BackgroundColor3=Color3.fromRGB(70,70,70); pct.TextColor3=Color3.fromRGB(255,255,255); pct.Font=Enum.Font.SourceSansBold; pct.TextSize=16
     local pcs=Instance.new("ScrollingFrame",pcm); pcs.Size=UDim2.new(1,0,1,-75); pcs.Position=UDim2.new(0,0,0,30); pcs.BackgroundColor3=Color3.fromRGB(55,55,55); pcs.BorderSizePixel=0; pcs.ScrollBarImageColor3=Color3.fromRGB(120,120,120); pcs.ScrollBarThickness=6
@@ -286,7 +270,7 @@ function M:Create()
     local esv=Instance.new("TextButton",ef); esv.Size=UDim2.new(0.9,0,0,35); esv.Position=UDim2.new(0.05,0,1,-40); esv.BackgroundColor3=Color3.fromRGB(80,120,200); esv.TextColor3=Color3.fromRGB(255,255,255); esv.Font=Enum.Font.SourceSansBold; esv.Text="Save & Close"; esv.TextSize=16
     esv.MouseButton1Click:Connect(function() local n=tonumber(tci.Text); if n then M.cfg.targetCount=n end; M:Save(); ef.Visible=false; sf.Visible=true; M.checkEggs=true end)
     petBtn.MouseButton1Click:Connect(function() sf.Visible=not sf.Visible end)
-    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then M.cfg.maxWeight=n end; M:Save(); sf.Visible=false; M:SellPets() end)
+    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then M.cfg.maxWeight=n end; local nr=tonumber(wri.Text); if nr then M.cfg.maxWeightRare=nr end; M:Save(); sf.Visible=false; M:SellPets() end)
     spb.MouseButton1Click:Connect(function() sf.Visible=false; pcm.Visible=true end)
     esb.MouseButton1Click:Connect(function() sf.Visible=false; redraw(); ef.Visible=true end)
     btn.MouseButton1Click:Connect(function() M:Toggle() end)
