@@ -1,5 +1,5 @@
 -- Wait for the game to fully load
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
 
 -- Add a singleton check to prevent multiple instances and memory leaks
 if _G.MyCombinedFarmScriptIsRunning then
@@ -14,18 +14,17 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v26_RarePets.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v28_Final.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4,
-    maxWeightRare = 10, -- NEW: Separate weight filter for rare pets
-    targetCount = 3, hatchFailsafeActive = false,
+    maxWeightRare = 10,
+    targetCount = 3, hatchFailsafeActive = false, cycleCounter = 0,
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
         ["Tanuki"]=false,["Tanchozuru"]=false,["Kappa"]=false,["Ostrich"]=false,["Peacock"]=false,["Capybara"]=false,
         ["Scarlet Macaw"]=false,["Caterpillar"]=false,["Snail"]=false,["Giant Ant"]=false,["Praying Mantis"]=false,
         ["Grey Mouse"]=false,["Brown Mouse"]=false,["Squirrel"]=false,["Red Giant Ant"]=false,
-        -- NEW: Rare pets added
         ["Brontosaurus"]=false, ["Spinosaurus"]=false, ["T-Rex"]=false, ["Mimic Octopus"]=false, ["Dragonfly"]=false, ["Red Fox"]=false,
     },
     priority = {"Primal Egg","Dinosaur Egg","Zen Egg","Paradise Egg","Bug Egg","Mythical Egg"}
@@ -37,14 +36,14 @@ M.petCats = {
     ["Paradise"]={"Ostrich","Peacock","Capybara","Scarlet Macaw"},
     ["Bug"]={"Caterpillar","Snail","Giant Ant","Praying Mantis"},
     ["Mythical"]={"Grey Mouse","Brown Mouse","Squirrel","Red Giant Ant"},
-    ["Rare Pets"]={"Brontosaurus", "Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"} -- NEW: Rare pet category
+    ["Rare Pets"]={"Brontosaurus", "Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"}
 }
 M.EGG_UUID = "OBJECT_UUID"; M.PLACE_ATTR = "h"; M.MIN_DIST = 5
 M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, cycleCounter=self.cfg.cycleCounter}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -53,7 +52,7 @@ function M:Load()
     if s and f then
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
-            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false; self.cfg.cycleCounter = d.cycleCounter or 0
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
@@ -128,6 +127,8 @@ end
 function M:Craft()
     local s,e=pcall(function()
         self:UpdateState("Crafting")
+        self.cfg.cycleCounter = self.cfg.cycleCounter + 1
+        
         local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
         if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
         local dt=self.Workspace:WaitForChild("DinoEvent",5):WaitForChild("DinoCraftingTable",5)
@@ -153,7 +154,7 @@ function M:Craft()
         end
 
         for _, tool in ipairs(self.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" then
+            if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" and not tool.Name:find("Seed") then
                 for _, t in ipairs(self.Character:GetChildren()) do
                     if t:IsA("Tool") then
                         t.Parent = self.Backpack
@@ -174,9 +175,33 @@ function M:Craft()
         end
 
         task.wait(0.3)
-        self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
-        task.wait(1)
-        self.TeleportService:Teleport(game.PlaceId)
+        
+        if self.cfg.cycleCounter % 3 == 0 then
+            print("Performing craft sync check...")
+            local sheckles = self.LocalPlayer.leaderstats.Sheckles
+            local initialSheckles = sheckles.Value
+            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
+            
+            local craftSuccess = false
+            local waitedTime = 0
+            while waitedTime < 2 do
+                if sheckles.Value ~= initialSheckles then craftSuccess = true; break end
+                task.wait(0.1); waitedTime = waitedTime + 0.1
+            end
+
+            if craftSuccess then
+                print("Craft successful. Teleporting.")
+                self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
+            else
+                warn("Craft failed (desync detected). Cancelling and restarting cycle.")
+                self.CraftingService:FireServer("Cancel", dt, "DinoEventWorkbench")
+                self.checkEggs = true
+            end
+        else
+            print("Craft cycle " .. self.cfg.cycleCounter .. ". Skipping sync check.")
+            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
+            self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
+        end
     end)
     if not s then warn("Craft Error:",e,"-- Off."); self.enabled=false; self:UpdateState(); self:Save() end
 end
