@@ -1,5 +1,5 @@
 -- Wait for the game to fully load
-if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(2)
+if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
 
 -- Add a singleton check to prevent multiple instances and memory leaks
 if _G.MyCombinedFarmScriptIsRunning then
