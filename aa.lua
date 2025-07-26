@@ -18,7 +18,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 --================================================================================--
 --                         Configuration & State
 --================================================================================--
-local harvestLimit = 12 -- Default value
+local harvestLimit = 9999999999999 -- Default value
 local isHarvesting = false -- Debounce to prevent spamming
 
 --================================================================================--
