@@ -11,6 +11,13 @@ if not game:IsLoaded() then
 end
 task.wait(1) -- A small extra delay for safety
 
+-- Add a singleton check to prevent multiple instances and memory leaks
+if _G.MyManualHarvesterIsRunning then
+    print("Harvester script is already running. Not starting a new instance.")
+    return
+end
+_G.MyManualHarvesterIsRunning = true
+
 print("Proximity Harvester loaded.")
 
 --================================================================================--
@@ -23,6 +30,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- Add a more robust wait to ensure the character is fully loaded for auto-execute
+repeat task.wait() until Character and Character:FindFirstChild("HumanoidRootPart")
+print("Character and HumanoidRootPart found. Proceeding with harvester.")
 
 --================================================================================--
 --                         Configuration & State
@@ -202,3 +213,16 @@ end
 
 -- Connect the button to the harvest function
 harvestButton.MouseButton1Click:Connect(runHarvestCycle)
+
+-- Cleanup function to run when the script is destroyed or player leaves
+local function cleanup()
+    screenGui:Destroy()
+    _G.MyManualHarvesterIsRunning = false
+end
+
+script.Destroying:Connect(cleanup)
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        cleanup()
+    end
+end)
