@@ -1,8 +1,17 @@
 --[[
-    Proximity Harvester
-    - When the button is pressed, automatically collects a user-defined
-      amount of the closest harvestable fruits/plants on your farm.
+    Manual Proximity Harvester
+    - Waits for the game to fully load before running.
+    - When the button is pressed, it collects a user-defined amount of the
+      closest harvestable items with a configurable delay.
 ]]
+
+-- Wait for the game to be fully loaded before running anything.
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(1) -- A small extra delay for safety
+
+print("Proximity Harvester loaded.")
 
 --================================================================================--
 --                         Services & Player Setup
@@ -193,5 +202,3 @@ end
 
 -- Connect the button to the harvest function
 harvestButton.MouseButton1Click:Connect(runHarvestCycle)
-
-print("Proximity Harvester loaded.")
