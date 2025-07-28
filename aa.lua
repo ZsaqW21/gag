@@ -1,8 +1,24 @@
 --[[
-    Proximity Harvester
-    - When the button is pressed, automatically collects a user-defined
-      amount of the closest harvestable fruits/plants on your farm.
+    Manual Proximity Harvester
+    - Waits for the game to fully load before running.
+    - When the button is pressed, it collects a user-defined amount of the
+      closest harvestable items with a configurable delay.
 ]]
+
+-- Wait for the game to be fully loaded before running anything.
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(1) -- A small extra delay for safety
+
+-- Add a singleton check to prevent multiple instances and memory leaks
+if _G.MyManualHarvesterIsRunning then
+    print("Harvester script is already running. Not starting a new instance.")
+    return
+end
+_G.MyManualHarvesterIsRunning = true
+
+print("Proximity Harvester loaded.")
 
 --================================================================================--
 --                         Services & Player Setup
@@ -15,10 +31,15 @@ local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
+-- Add a more robust wait to ensure the character is fully loaded for auto-execute
+repeat task.wait() until Character and Character:FindFirstChild("HumanoidRootPart")
+print("Character and HumanoidRootPart found. Proceeding with harvester.")
+
 --================================================================================--
 --                         Configuration & State
 --================================================================================--
-local harvestLimit = 12 -- Default value
+local harvestLimit = 211 -- Default value changed as requested
+local harvestDelay = 0.1 -- Default delay
 local isHarvesting = false -- Debounce to prevent spamming
 
 --================================================================================--
@@ -53,7 +74,7 @@ amountInput.Size = UDim2.new(0, 60, 0, 30)
 amountInput.Position = UDim2.new(1, -230, 0, 15)
 local corner2 = Instance.new("UICorner", amountInput); corner2.CornerRadius = UDim.new(0, 4)
 
--- Label for the TextBox
+-- Label for the Amount TextBox
 local amountLabel = Instance.new("TextLabel")
 amountLabel.Name = "AmountLabel"
 amountLabel.Text = "Amount:"
@@ -65,9 +86,36 @@ amountLabel.TextXAlignment = Enum.TextXAlignment.Right
 amountLabel.Size = UDim2.new(0, 60, 0, 30)
 amountLabel.Position = UDim2.new(1, -295, 0, 15)
 
+-- NEW: Delay Input TextBox
+local delayInput = Instance.new("TextBox")
+delayInput.Name = "DelayInput"
+delayInput.Text = tostring(harvestDelay)
+delayInput.PlaceholderText = "Delay"
+delayInput.TextSize = 14
+delayInput.Font = Enum.Font.SourceSans
+delayInput.TextColor3 = Color3.fromRGB(240, 240, 240)
+delayInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+delayInput.Size = UDim2.new(0, 60, 0, 30)
+delayInput.Position = UDim2.new(1, -230, 0, 55)
+local corner3 = Instance.new("UICorner", delayInput); corner3.CornerRadius = UDim.new(0, 4)
+
+-- NEW: Label for the Delay TextBox
+local delayLabel = Instance.new("TextLabel")
+delayLabel.Name = "DelayLabel"
+delayLabel.Text = "Delay:"
+delayLabel.TextSize = 14
+delayLabel.Font = Enum.Font.SourceSans
+delayLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+delayLabel.BackgroundTransparency = 1
+delayLabel.TextXAlignment = Enum.TextXAlignment.Right
+delayLabel.Size = UDim2.new(0, 60, 0, 30)
+delayLabel.Position = UDim2.new(1, -295, 0, 55)
+
 harvestButton.Parent = screenGui
 amountInput.Parent = screenGui
 amountLabel.Parent = screenGui
+delayInput.Parent = screenGui
+delayLabel.Parent = screenGui
 screenGui.Parent = PlayerGui
 
 --================================================================================--
@@ -140,12 +188,13 @@ local function runHarvestCycle()
 
         local collected = 0
         local limit = tonumber(amountInput.Text) or harvestLimit
+        local delay = tonumber(delayInput.Text) or harvestDelay
         for i = 1, math.min(limit, #promptsWithDist) do
             local promptData = promptsWithDist[i]
             if promptData.Prompt and promptData.Prompt.Enabled then
                 fireproximityprompt(promptData.Prompt)
                 collected = collected + 1
-                task.wait(0.1)
+                task.wait(delay)
             end
         end
         
@@ -165,4 +214,15 @@ end
 -- Connect the button to the harvest function
 harvestButton.MouseButton1Click:Connect(runHarvestCycle)
 
-print("Proximity Harvester loaded.")
+-- Cleanup function to run when the script is destroyed or player leaves
+local function cleanup()
+    screenGui:Destroy()
+    _G.MyManualHarvesterIsRunning = false
+end
+
+script.Destroying:Connect(cleanup)
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        cleanup()
+    end
+end)
