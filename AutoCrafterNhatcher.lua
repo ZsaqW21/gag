@@ -12,13 +12,13 @@ do
 local M = {}
 M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Players"); M.ReplicatedStorage = game:GetService("ReplicatedStorage"); M.TeleportService = game:GetService("TeleportService"); M.Workspace = game:GetService("Workspace")
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
-M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.CraftingService = M.GameEvents:WaitForChild("CraftingGlobalObjectService"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
+M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v28_Final.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v29_NoCrafting.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4,
     maxWeightRare = 10,
-    targetCount = 3, hatchFailsafeActive = false, cycleCounter = 0,
+    targetCount = 3, hatchFailsafeActive = false,
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
@@ -43,7 +43,7 @@ M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, cycleCounter=self.cfg.cycleCounter}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -52,7 +52,7 @@ function M:Load()
     if s and f then
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
-            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false; self.cfg.cycleCounter = d.cycleCounter or 0
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
@@ -124,92 +124,12 @@ function M:SellPets()
     end
     print("Sold "..sold.." pet(s).")
 end
-function M:Craft()
-    local s,e=pcall(function()
-        self:UpdateState("Crafting")
-        self.cfg.cycleCounter = self.cfg.cycleCounter + 1
-        
-        local de=self.Workspace:FindFirstChild("DinoEvent") or self.ReplicatedStorage.Modules:WaitForChild("UpdateService"):WaitForChild("DinoEvent")
-        if de and de:IsDescendantOf(self.ReplicatedStorage) then de.Parent=self.Workspace end
-        local dt=self.Workspace:WaitForChild("DinoEvent",5):WaitForChild("DinoCraftingTable",5)
-        if not dt then error("No crafting table") end
 
-        self.CraftingService:FireServer("SetRecipe", dt, "DinoEventWorkbench", "Primal Egg")
-        task.wait(0.3)
-
-        for _, tool in ipairs(self.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and tool:GetAttribute("h") == "Dinosaur Egg" then
-                tool.Parent = self.Character
-                task.wait(0.3)
-                local uuid = tool:GetAttribute("c")
-                if uuid then
-                    self.CraftingService:FireServer("InputItem", dt, "DinoEventWorkbench", 1, {
-                        ItemType = "PetEgg",
-                        ItemData = { UUID = uuid }
-                    })
-                end
-                tool.Parent = self.Backpack
-                break
-            end
-        end
-
-        for _, tool in ipairs(self.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and tool:GetAttribute("f") == "Bone Blossom" and not tool.Name:find("Seed") then
-                for _, t in ipairs(self.Character:GetChildren()) do
-                    if t:IsA("Tool") then
-                        t.Parent = self.Backpack
-                    end
-                end
-                tool.Parent = self.Character
-                task.wait(0.3)
-                local uuid = tool:GetAttribute("c")
-                if uuid then
-                    self.CraftingService:FireServer("InputItem", dt, "DinoEventWorkbench", 2, {
-                        ItemType = "Holdable",
-                        ItemData = { UUID = uuid }
-                    })
-                end
-                tool.Parent = self.Backpack
-                break
-            end
-        end
-
-        task.wait(0.3)
-        
-        if self.cfg.cycleCounter % 3 == 0 then
-            print("Performing craft sync check...")
-            local sheckles = self.LocalPlayer.leaderstats.Sheckles
-            local initialSheckles = sheckles.Value
-            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
-            
-            local craftSuccess = false
-            local waitedTime = 0
-            while waitedTime < 2 do
-                if sheckles.Value ~= initialSheckles then craftSuccess = true; break end
-                task.wait(0.1); waitedTime = waitedTime + 0.1
-            end
-
-            if craftSuccess then
-                print("Craft successful. Teleporting.")
-                self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
-            else
-                warn("Craft failed (desync detected). Cancelling and restarting cycle.")
-                self.CraftingService:FireServer("Cancel", dt, "DinoEventWorkbench")
-                self.checkEggs = true
-            end
-        else
-            print("Craft cycle " .. self.cfg.cycleCounter .. ". Skipping sync check.")
-            self.CraftingService:FireServer("Craft", dt, "DinoEventWorkbench")
-            self:Save(); task.wait(1); self.TeleportService:Teleport(game.PlaceId)
-        end
-    end)
-    if not s then warn("Craft Error:",e,"-- Off."); self.enabled=false; self:UpdateState(); self:Save() end
-end
 function M:Loop()
     while self.enabled do
         if self.checkEggs then
             if self.cfg.hatchFailsafeActive then
-                print("Hatching failsafe is active. Skipping egg checks.")
+                print("Hatching failsafe is active. Rejoining to wait.")
                 self.checkEggs = false
             else
                 self:UpdateState("Finding Farm"); local f=self:FindFarm(); if not f then task.wait(5); continue end
@@ -230,10 +150,17 @@ function M:Loop()
                         end
                     end
                 end
-                if #all>0 and rdy<#all then print("Eggs not ready. Fast crafting."); self.checkEggs=false end
+                if #all>0 and rdy<#all then print("Eggs not ready. Rejoining to wait."); self.checkEggs=false end
             end
         end
-        self:Craft(); task.wait(3)
+        
+        -- If we are not checking eggs, it means we are waiting for them to hatch. Rejoin.
+        if not self.checkEggs then
+            self:UpdateState("Waiting...")
+            task.wait(1)
+            self.TeleportService:Teleport(game.PlaceId)
+        end
+        task.wait(3) -- A small delay in the main loop if no other action is taken
     end
     self:Save(); self:UpdateState()
 end
