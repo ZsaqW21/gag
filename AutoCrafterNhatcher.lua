@@ -14,11 +14,12 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v29_NoCrafting.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v33_KeptPetAlert.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4,
     maxWeightRare = 10,
     targetCount = 3, hatchFailsafeActive = false,
+    webhookUrl = "", -- NEW: Webhook URL setting
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
@@ -43,7 +44,7 @@ M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, webhookUrl=self.cfg.webhookUrl}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -52,22 +53,47 @@ function M:Load()
     if s and f then
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
-            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false
+            self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false; self.cfg.webhookUrl=d.webhookUrl or ""
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
     end
 end
 
-function M:FindFarm()
-    local rp=self.Character:WaitForChild("HumanoidRootPart") if not rp then return nil end
-    local ff,cf,md=self.Workspace:WaitForChild("Farm"),nil,math.huge
-    for _,p in ipairs(ff:GetChildren()) do
-        local cp=p:FindFirstChild("Center_Point")
-        if cp then local d=(rp.Position-cp.Position).Magnitude; if d<md then md=d; cf=p end end
-    end
-    return cf
+function M:SendWebhook(title, description, color)
+    if not self.cfg.webhookUrl or self.cfg.webhookUrl == "" then return end
+    local payload = {
+        embeds = {{
+            title = title,
+            description = description,
+            color = color or 3092790, -- Default blue color
+            footer = { text = "Auto-Farm Alert" }
+        }}
+    }
+    local success, err = pcall(function()
+        self.HttpService:PostAsync(self.cfg.webhookUrl, self.HttpService:JSONEncode(payload))
+    end)
+    if not success then warn("Webhook failed to send:", err) end
 end
+
+function M:FindFarm()
+    local playerName = self.LocalPlayer.Name
+    for _, farm in ipairs(self.Workspace:WaitForChild("Farm"):GetChildren()) do
+        local success, isOwned = pcall(function()
+            local owner = farm:FindFirstChild("Important")
+                        and farm.Important:FindFirstChild("Data")
+                        and farm.Important.Data:FindFirstChild("Owner")
+            return owner and owner:IsA("StringValue") and owner.Value == playerName
+        end)
+
+        if success and isOwned then
+            return farm
+        end
+    end
+    warn("Could not find a farm owned by " .. playerName)
+    return nil
+end
+
 function M:FindTool()
     for _,n in ipairs(self.cfg.priority) do
         for _,i in ipairs(self.Backpack:GetChildren()) do if i:IsA("Tool") and i:GetAttribute(self.PLACE_ATTR)==n then return i end end
@@ -95,34 +121,93 @@ end
 function M:UpdateVis() if petBtn then petBtn.Visible=not self.enabled end end
 function M:SellPets()
     self:UpdateState("Selling Pets"); local sold=0
-    while true do
-        local soldPass=false
-        for _,i in ipairs(self.Backpack:GetChildren()) do
-            if i:IsA("Tool") then
-                for n,s in pairs(self.cfg.sell) do
-                    if s and i.Name:find(n,1,true) then
-                        local wS=i.Name:match("%[(%d+%.?%d*)%s*KG%]")
-                        if wS then
-                            local w=tonumber(wS)
-                            local isRare = false
-                            for _, rarePetName in ipairs(self.petCats["Rare Pets"]) do if n == rarePetName then isRare = true; break end end
-                            local weightLimit = isRare and self.cfg.maxWeightRare or self.cfg.maxWeight
-                            if w<weightLimit then
-                                local h=self.Character:FindFirstChildOfClass("Humanoid")
-                                if h then h:EquipTool(i); task.wait(0.5)
-                                    if i.Parent==self.Character then self.SellPetRemote:FireServer(i); sold=sold+1; soldPass=true; task.wait(1); break
-                                    else if i.Parent~=self.Backpack then i.Parent=self.Backpack end end
-                                end
-                            end
+    local petsToSell = {}
+    for _, item in ipairs(self.Backpack:GetChildren()) do
+        if item and item.Parent and item:IsA("Tool") then
+            for petName, shouldSell in pairs(self.cfg.sell) do
+                if shouldSell and item.Name:find(petName, 1, true) then
+                    local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
+                    if weightString then
+                        local weight = tonumber(weightString)
+                        local isRare = false
+                        for _, rarePetName in ipairs(self.petCats["Rare Pets"]) do
+                            if petName == rarePetName then isRare = true; break end
+                        end
+                        local weightLimit = isRare and self.cfg.maxWeightRare or self.cfg.maxWeight
+                        if weight < weightLimit then
+                            table.insert(petsToSell, item)
+                            break 
                         end
                     end
                 end
             end
-            if soldPass then break end
         end
-        if not soldPass then break end
     end
-    print("Sold "..sold.." pet(s).")
+    if #petsToSell == 0 then print("No pets to sell."); return end
+    print("Found " .. #petsToSell .. " pet(s) to sell.")
+    for _, petToSell in ipairs(petsToSell) do
+        if not self.enabled then break end
+        if petToSell and petToSell.Parent then
+            local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:EquipTool(petToSell)
+                task.wait(0.3)
+                if petToSell.Parent == self.Character then
+                    self.SellPetRemote:FireServer(petToSell)
+                    sold = sold + 1
+                    task.wait(0.5) 
+                else
+                    if petToSell.Parent ~= self.Backpack then
+                        petToSell.Parent = self.Backpack
+                    end
+                end
+            end
+        end
+    end
+    print("Auto-sell finished. Sold " .. sold .. " pet(s).")
+end
+
+function M:ReportKeptPets()
+    local keptPetsList = {}
+    for _, item in ipairs(self.Backpack:GetChildren()) do
+        if item and item:IsA("Tool") then
+            local petNameFound = nil
+            for petBaseName, _ in pairs(self.cfg.sell) do
+                if item.Name:find(petBaseName, 1, true) then
+                    petNameFound = petBaseName
+                    break
+                end
+            end
+
+            if petNameFound then
+                local shouldSell = self.cfg.sell[petNameFound]
+                if not shouldSell then
+                    table.insert(keptPetsList, item.Name)
+                else
+                    local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
+                    if weightString then
+                        local weight = tonumber(weightString)
+                        local isRare = false
+                        for _, rarePetName in ipairs(self.petCats["Rare Pets"]) do
+                            if petNameFound == rarePetName then isRare = true; break end
+                        end
+                        local weightLimit = isRare and self.cfg.maxWeightRare or self.cfg.maxWeight
+                        if weight >= weightLimit then
+                            table.insert(keptPetsList, item.Name)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #keptPetsList > 0 then
+        local description = "The following pets were kept in your inventory:\n\n"
+        for _, petName in ipairs(keptPetsList) do
+            description = description .. "- **" .. petName .. "**\n"
+        end
+        self:SendWebhook("Kept Pets Report", description, 3447003) -- Blue color
+    end
 end
 
 function M:Loop()
@@ -136,17 +221,18 @@ function M:Loop()
                 local of=f:FindFirstChild("Important",true) and f.Important:FindFirstChild("Objects_Physical") if not of then task.wait(5); continue end
                 self:UpdateState("Checking Eggs"); local all,rdy={},0; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(all,o) end end; for _,e in ipairs(all) do if e:GetAttribute("TimeToHatch")==0 then rdy=rdy+1 end end
                 if #all>=self.cfg.targetCount and rdy==#all then
-                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.2) end; task.wait(3)
+                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.1) end; task.wait(0.5)
                     local after={}; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(after,o) end end
                     if #after>=b4 then
                         warn("Hatch fail (inv full?). Activating failsafe."); self.checkEggs=false; self.cfg.hatchFailsafeActive=true; self:Save()
-                    end; continue
+                        self:SendWebhook("Hatching Failsafe Tripped!", "The script could not hatch eggs. Your pet inventory is likely full.", 15158332) -- Red color
+                    end; self.checkEggs=true; continue
                 end
                 if #all<self.cfg.targetCount then
                     self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
                     if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
-                        if t then h:EquipTool(t); task.wait(0.5); self.placed={}; local num=self.cfg.targetCount-#all
-                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.5) end; task.wait(1); self:SellPets(); continue
+                        if t then h:EquipTool(t); task.wait(0.3); self.placed={}; local num=self.cfg.targetCount-#all
+                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.2) end; task.wait(0.5); self:SellPets(); self:ReportKeptPets(); self.checkEggs=true; continue
                         end
                     end
                 end
@@ -154,13 +240,12 @@ function M:Loop()
             end
         end
         
-        -- If we are not checking eggs, it means we are waiting for them to hatch. Rejoin.
         if not self.checkEggs then
             self:UpdateState("Waiting...")
-            task.wait(1)
+            task.wait(0.1)
             self.TeleportService:Teleport(game.PlaceId)
         end
-        task.wait(3) -- A small delay in the main loop if no other action is taken
+        task.wait(1)
     end
     self:Save(); self:UpdateState()
 end
@@ -172,16 +257,20 @@ function M:Create()
     
     closeBtn=Instance.new("TextButton",gui); closeBtn.Name="CloseButton"; closeBtn.Text="Close Script"; closeBtn.TextSize=14; closeBtn.Font=Enum.Font.SourceSansBold; closeBtn.TextColor3=Color3.fromRGB(255,255,255); closeBtn.BackgroundColor3=Color3.fromRGB(180, 80, 80); closeBtn.Size=UDim2.new(0,100,0,30); closeBtn.Position=UDim2.new(1,-550,0,20); local c_close=Instance.new("UICorner",closeBtn); c_close.CornerRadius=UDim.new(0,6)
 
-    local sf=Instance.new("Frame",gui); sf.Size=UDim2.new(0,220,0,260); sf.Position=UDim2.new(0.5,-110,0.5,-130); sf.BackgroundColor3=Color3.fromRGB(55,55,55); sf.BorderColor3=Color3.fromRGB(150,150,150); sf.BorderSizePixel=2; sf.Visible=false; local c4=Instance.new("UICorner",sf); c4.CornerRadius=UDim.new(0,8)
+    local sf=Instance.new("Frame",gui); sf.Size=UDim2.new(0,220,0,300); sf.Position=UDim2.new(0.5,-110,0.5,-150); sf.BackgroundColor3=Color3.fromRGB(55,55,55); sf.BorderColor3=Color3.fromRGB(150,150,150); sf.BorderSizePixel=2; sf.Visible=false; local c4=Instance.new("UICorner",sf); c4.CornerRadius=UDim.new(0,8)
     local st=Instance.new("TextLabel",sf); st.Size=UDim2.new(1,0,0,30); st.Text="Main Settings"; st.BackgroundColor3=Color3.fromRGB(70,70,70); st.TextColor3=Color3.fromRGB(255,255,255); st.Font=Enum.Font.SourceSansBold; st.TextSize=16
     local ll=Instance.new("UIListLayout",sf); ll.Padding=UDim.new(0,10); ll.SortOrder=Enum.SortOrder.LayoutOrder; ll.HorizontalAlignment=Enum.HorizontalAlignment.Center
     local wl=Instance.new("TextLabel",sf); wl.Size=UDim2.new(0.9,0,0,20); wl.Text="Sell pets UNDER this KG:"; wl.BackgroundColor3=Color3.fromRGB(55,55,55); wl.TextColor3=Color3.fromRGB(220,220,220); wl.Font=Enum.Font.SourceSans; wl.TextSize=14; wl.LayoutOrder=1; wl.TextXAlignment=Enum.TextXAlignment.Left
     local wi=Instance.new("TextBox",sf); wi.Size=UDim2.new(0.9,0,0,30); wi.BackgroundColor3=Color3.fromRGB(40,40,40); wi.TextColor3=Color3.fromRGB(255,255,255); wi.Font=Enum.Font.SourceSansBold; wi.TextSize=14; wi.Text=tostring(M.cfg.maxWeight); wi.LayoutOrder=2
     local wrl=Instance.new("TextLabel",sf); wrl.Size=UDim2.new(0.9,0,0,20); wrl.Text="Sell RARE pets UNDER this KG:"; wrl.BackgroundColor3=Color3.fromRGB(55,55,55); wrl.TextColor3=Color3.fromRGB(220,220,220); wrl.Font=Enum.Font.SourceSans; wrl.TextSize=14; wrl.LayoutOrder=3; wrl.TextXAlignment=Enum.TextXAlignment.Left
     local wri=Instance.new("TextBox",sf); wri.Size=UDim2.new(0.9,0,0,30); wri.BackgroundColor3=Color3.fromRGB(40,40,40); wri.TextColor3=Color3.fromRGB(255,255,255); wri.Font=Enum.Font.SourceSansBold; wri.TextSize=14; wri.Text=tostring(M.cfg.maxWeightRare); wri.LayoutOrder=4
-    local spb=Instance.new("TextButton",sf); spb.Size=UDim2.new(0.9,0,0,35); spb.BackgroundColor3=Color3.fromRGB(70,90,180); spb.TextColor3=Color3.fromRGB(255,255,255); spb.Font=Enum.Font.SourceSansBold; spb.Text="Select Pets to Sell"; spb.TextSize=16; spb.LayoutOrder=5; local c5=Instance.new("UICorner",spb); c5.CornerRadius=UDim.new(0,6)
-    local esb=Instance.new("TextButton",sf); esb.Size=UDim2.new(0.9,0,0,35); esb.BackgroundColor3=Color3.fromRGB(70,90,180); esb.TextColor3=Color3.fromRGB(255,255,255); esb.Font=Enum.Font.SourceSansBold; esb.Text="Egg Placement Priority"; esb.TextSize=16; esb.LayoutOrder=6; local c6=Instance.new("UICorner",esb); c6.CornerRadius=UDim.new(0,6)
-    local svb=Instance.new("TextButton",sf); svb.Size=UDim2.new(0.9,0,0,35); svb.BackgroundColor3=Color3.fromRGB(80,120,200); svb.TextColor3=Color3.fromRGB(255,255,255); svb.Font=Enum.Font.SourceSansBold; svb.Text="Save & Close"; svb.TextSize=16; svb.LayoutOrder=7; local c7=Instance.new("UICorner",svb); c7.CornerRadius=UDim.new(0,6)
+    
+    local webhookLabel = Instance.new("TextLabel",sf); webhookLabel.Size=UDim2.new(0.9,0,0,20); webhookLabel.Text="Discord Webhook URL:"; webhookLabel.BackgroundColor3=Color3.fromRGB(55,55,55); webhookLabel.TextColor3=Color3.fromRGB(220,220,220); webhookLabel.Font=Enum.Font.SourceSans; webhookLabel.TextSize=14; webhookLabel.LayoutOrder=5; webhookLabel.TextXAlignment=Enum.TextXAlignment.Left
+    local webhookInput = Instance.new("TextBox",sf); webhookInput.Size=UDim2.new(0.9,0,0,30); webhookInput.BackgroundColor3=Color3.fromRGB(40,40,40); webhookInput.TextColor3=Color3.fromRGB(255,255,255); webhookInput.Font=Enum.Font.SourceSansBold; webhookInput.TextSize=14; webhookInput.Text=M.cfg.webhookUrl; webhookInput.LayoutOrder=6
+    
+    local spb=Instance.new("TextButton",sf); spb.Size=UDim2.new(0.9,0,0,35); spb.BackgroundColor3=Color3.fromRGB(70,90,180); spb.TextColor3=Color3.fromRGB(255,255,255); spb.Font=Enum.Font.SourceSansBold; spb.Text="Select Pets to Sell"; spb.TextSize=16; spb.LayoutOrder=7; local c5=Instance.new("UICorner",spb); c5.CornerRadius=UDim.new(0,6)
+    local esb=Instance.new("TextButton",sf); esb.Size=UDim2.new(0.9,0,0,35); esb.BackgroundColor3=Color3.fromRGB(70,90,180); esb.TextColor3=Color3.fromRGB(255,255,255); esb.Font=Enum.Font.SourceSansBold; esb.Text="Egg Placement Priority"; esb.TextSize=16; esb.LayoutOrder=8; local c6=Instance.new("UICorner",esb); c6.CornerRadius=UDim.new(0,6)
+    local svb=Instance.new("TextButton",sf); svb.Size=UDim2.new(0.9,0,0,35); svb.BackgroundColor3=Color3.fromRGB(80,120,200); svb.TextColor3=Color3.fromRGB(255,255,255); svb.Font=Enum.Font.SourceSansBold; svb.Text="Save & Close"; svb.TextSize=16; svb.LayoutOrder=9; local c7=Instance.new("UICorner",svb); c7.CornerRadius=UDim.new(0,6)
     local pcm=Instance.new("Frame",gui); pcm.Size=UDim2.new(0,200,0,250); pcm.Position=UDim2.new(0.5,-100,0.5,-125); pcm.BackgroundColor3=Color3.fromRGB(55,55,55); pcm.BorderColor3=Color3.fromRGB(150,150,150); pcm.BorderSizePixel=2; pcm.Visible=false
     local pct=Instance.new("TextLabel",pcm); pct.Size=UDim2.new(1,0,0,30); pct.Text="Pet Categories"; pct.BackgroundColor3=Color3.fromRGB(70,70,70); pct.TextColor3=Color3.fromRGB(255,255,255); pct.Font=Enum.Font.SourceSansBold; pct.TextSize=16
     local pcs=Instance.new("ScrollingFrame",pcm); pcs.Size=UDim2.new(1,0,1,-75); pcs.Position=UDim2.new(0,0,0,30); pcs.BackgroundColor3=Color3.fromRGB(55,55,55); pcs.BorderSizePixel=0; pcs.ScrollBarImageColor3=Color3.fromRGB(120,120,120); pcs.ScrollBarThickness=6
@@ -222,7 +311,7 @@ function M:Create()
     local esv=Instance.new("TextButton",ef); esv.Size=UDim2.new(0.9,0,0,35); esv.Position=UDim2.new(0.05,0,1,-40); esv.BackgroundColor3=Color3.fromRGB(80,120,200); esv.TextColor3=Color3.fromRGB(255,255,255); esv.Font=Enum.Font.SourceSansBold; esv.Text="Save & Close"; esv.TextSize=16
     esv.MouseButton1Click:Connect(function() local n=tonumber(tci.Text); if n then M.cfg.targetCount=n end; M:Save(); ef.Visible=false; sf.Visible=true; M.checkEggs=true end)
     petBtn.MouseButton1Click:Connect(function() sf.Visible=not sf.Visible end)
-    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then M.cfg.maxWeight=n end; local nr=tonumber(wri.Text); if nr then M.cfg.maxWeightRare=nr end; M:Save(); sf.Visible=false; M:SellPets() end)
+    svb.MouseButton1Click:Connect(function() local n=tonumber(wi.Text); if n then M.cfg.maxWeight=n end; local nr=tonumber(wri.Text); if nr then M.cfg.maxWeightRare=nr end; M.cfg.webhookUrl = webhookInput.Text; M:Save(); sf.Visible=false; M:SellPets() end)
     spb.MouseButton1Click:Connect(function() sf.Visible=false; pcm.Visible=true end)
     esb.MouseButton1Click:Connect(function() sf.Visible=false; redraw(); ef.Visible=true end)
     btn.MouseButton1Click:Connect(function() M:Toggle() end)
@@ -251,5 +340,11 @@ M:Create()
 M:UpdateState()
 M:UpdateVis()
 if M.enabled then M.thread=task.spawn(function() M:Loop() end) end
+
+script.Destroying:Connect(function()
+    if M.thread then task.cancel(M.thread) end
+    _G.MyCombinedFarmScriptIsRunning = false
+end)
+
 print("Combined Auto-Farm & Crafter (Final) loaded.")
 end
