@@ -14,7 +14,7 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v40_ReportFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v43_PlacementFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4,
     maxWeightRare = 10,
@@ -46,7 +46,6 @@ M.petCats = {
     ["Rare Pets"]={"Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"}
 }
 M.EGG_UUID = "OBJECT_UUID"; M.PLACE_ATTR = "h"; M.MIN_DIST = 5
-M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
@@ -125,14 +124,37 @@ function M:FindTool()
     end
     return nil
 end
-function M:PlaceEgg()
+function M:PlaceEgg(farmPlot)
+    if not farmPlot or not farmPlot:FindFirstChild("Center_Point") then return end
+    local center = farmPlot.Center_Point.Position
+    
+    local plotWidth = 20
+    local plotLength = 50
+    local gap = 10
+
+    local leftBoxMinX = center.X - (gap/2) - plotWidth
+    local leftBoxMaxX = center.X - (gap/2)
+    local rightBoxMinX = center.X + (gap/2)
+    local rightBoxMaxX = center.X + (gap/2) + plotWidth
+    
+    local minZ = center.Z - (plotLength / 2)
+    local maxZ = center.Z + (plotLength / 2)
+
     local r,iv,a=nil,false,0
     repeat
-        r=Vector3.new(math.random()*(math.max(self.c1.X,self.c2.X)-math.min(self.c1.X,self.c2.X))+math.min(self.c1.X,self.c2.X),self.c1.Y,math.random()*(math.max(self.c1.Z,self.c2.Z)-math.min(self.c1.Z,self.c2.Z))+math.min(self.c1.Z,self.c2.Z))
+        local chosenMinX, chosenMaxX
+        if math.random(1, 2) == 1 then
+            chosenMinX, chosenMaxX = leftBoxMinX, leftBoxMaxX
+        else
+            chosenMinX, chosenMaxX = rightBoxMinX, rightBoxMaxX
+        end
+        
+        r=Vector3.new(math.random() * (chosenMaxX - chosenMinX) + chosenMinX, center.Y, math.random() * (maxZ - minZ) + minZ)
         iv=true; for _,p in ipairs(self.placed) do if (r-p).Magnitude<self.MIN_DIST then iv=false; break end end; a=a+1
     until iv or a>=100
     if iv then self.PetEggService:FireServer("CreateEgg",r); table.insert(self.placed,r) end
 end
+
 function M:HatchEgg(e)
     local p=e:FindFirstChild("ProximityPrompt",true) if not p then return end
     local d,los=p.MaxActivationDistance,p.RequiresLineOfSight; p.MaxActivationDistance=math.huge; p.RequiresLineOfSight=false
@@ -252,7 +274,7 @@ function M:Loop()
 
         if self.cfg.needsToSell then
             self:SellPets()
-            task.wait(1.5)
+            task.wait(2) 
             self:ReportKeptPets()
             self.cfg.needsToSell = false
             self.checkEggs = true
@@ -273,7 +295,7 @@ function M:Loop()
                         if item:IsA("Tool") then petsBefore[item] = true end
                     end
                     
-                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.1) end; task.wait(3)
+                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.1) end; task.wait(2)
                     
                     self.cfg.newlyHatchedNames = {}
                     for _, item in ipairs(self.Backpack:GetChildren()) do
@@ -292,8 +314,23 @@ function M:Loop()
                 if #all<self.cfg.targetCount then
                     self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
                     if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
-                        if t then h:EquipTool(t); task.wait(0.3); self.placed={}; local num=self.cfg.targetCount-#all
-                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.2) end; task.wait(0.5); self.cfg.needsToSell=true; self.checkEggs=false;
+                        if t then h:EquipTool(t); task.wait(0.3); self.placed={};
+                            local attempts = 0
+                            while #of:GetChildren() < self.cfg.targetCount and attempts < 20 do
+                                if not self.enabled then break end
+                                self.placed = {}
+                                for _, egg in ipairs(of:GetChildren()) do
+                                    if egg:IsA("Model") then
+                                        local mainPart = egg:FindFirstChildOfClass("BasePart")
+                                        if mainPart then
+                                            table.insert(self.placed, mainPart.Position)
+                                        end
+                                    end
+                                end
+                                self:PlaceEgg(f); task.wait(0.3)
+                                attempts = attempts + 1
+                            end
+                            task.wait(0.5); self.cfg.needsToSell=true; self.checkEggs=false;
                         end
                     end
                 end
