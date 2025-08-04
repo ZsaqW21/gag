@@ -14,12 +14,18 @@ M.HttpService = game:GetService("HttpService"); M.Players = game:GetService("Pla
 M.LocalPlayer = M.Players.LocalPlayer or M.Players.PlayerAdded:Wait(); M.PlayerGui = M.LocalPlayer:WaitForChild("PlayerGui"); M.Character = M.LocalPlayer.Character or M.LocalPlayer.CharacterAdded:Wait(); M.Backpack = M.LocalPlayer:WaitForChild("Backpack")
 M.GameEvents = M.ReplicatedStorage:WaitForChild("GameEvents"); M.PetEggService = M.GameEvents:WaitForChild("PetEggService"); M.SellPetRemote = M.GameEvents:WaitForChild("SellPet_RE")
 
-M.CFG_FILE = "CombinedFarmAndSeller_v33_KeptPetAlert.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
+M.CFG_FILE = "CombinedFarmAndSeller_v40_ReportFix.json"; M.enabled = false; M.thread = nil; M.placed = {}; M.checkEggs = true
 M.cfg = {
     maxWeight = 4,
     maxWeightRare = 10,
-    targetCount = 3, hatchFailsafeActive = false,
-    webhookUrl = "", -- NEW: Webhook URL setting
+    targetCount = 3, hatchFailsafeActive = false, needsToSell = false,
+    webhookUrl = "",
+    stats = {
+        eggsHatched = 0,
+        petsKept = 0,
+        lastReportTime = os.time()
+    },
+    newlyHatchedNames = {}, -- To track pets across rejoins
     sell = {
         ["Parasaurolophus"]=false,["Iguanodon"]=false,["Pachycephalosaurus"]=false,["Dilophosaurus"]=false,["Ankylosaurus"]=false,
         ["Raptor"]=false,["Triceratops"]=false,["Stegosaurus"]=false,["Pterodactyl"]=false,["Shiba Inu"]=false,["Nihonzaru"]=false,
@@ -32,19 +38,19 @@ M.cfg = {
 }
 M.petCats = {
     ["Primal"]={"Parasaurolophus","Iguanodon","Pachycephalosaurus","Dilophosaurus","Ankylosaurus"},
-    ["Dino"]={"Raptor","Triceratops","Stegosaurus","Pterodactyl"},
+    ["Dino"]={"Raptor","Triceratops","Stegosaurus","Pterodactyl", "Brontosaurus"},
     ["Zen"]={"Shiba Inu","Nihonzaru","Tanuki","Tanchozuru","Kappa"},
     ["Paradise"]={"Ostrich","Peacock","Capybara","Scarlet Macaw"},
     ["Bug"]={"Caterpillar","Snail","Giant Ant","Praying Mantis"},
     ["Mythical"]={"Grey Mouse","Brown Mouse","Squirrel","Red Giant Ant"},
-    ["Rare Pets"]={"Brontosaurus", "Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"}
+    ["Rare Pets"]={"Spinosaurus", "T-Rex", "Mimic Octopus", "Dragonfly", "Red Fox"}
 }
 M.EGG_UUID = "OBJECT_UUID"; M.PLACE_ATTR = "h"; M.MIN_DIST = 5
 M.c1 = Vector3.new(-2.55, 0.13, 47.83); M.c2 = Vector3.new(26.80, 0.13, 106.00)
 
 function M:Save()
     if typeof(writefile)~="function" then return end
-    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, webhookUrl=self.cfg.webhookUrl}
+    local s={enabled=self.enabled,maxWeight=self.cfg.maxWeight,maxWeightRare=self.cfg.maxWeightRare,sell=self.cfg.sell,priority=self.cfg.priority,targetCount=self.cfg.targetCount, hatchFailsafeActive=self.cfg.hatchFailsafeActive, webhookUrl=self.cfg.webhookUrl, stats=self.cfg.stats, needsToSell=self.cfg.needsToSell, newlyHatchedNames=self.cfg.newlyHatchedNames}
     pcall(function() writefile(self.CFG_FILE, self.HttpService:JSONEncode(s)) end)
 end
 function M:Load()
@@ -54,6 +60,9 @@ function M:Load()
         local s2, d = pcall(self.HttpService.JSONDecode, self.HttpService, f)
         if s2 and typeof(d)=="table" then
             self.enabled=d.enabled or false; self.cfg.maxWeight=d.maxWeight or self.cfg.maxWeight; self.cfg.maxWeightRare=d.maxWeightRare or self.cfg.maxWeightRare; self.cfg.targetCount=d.targetCount or self.cfg.targetCount; self.cfg.hatchFailsafeActive=d.hatchFailsafeActive or false; self.cfg.webhookUrl=d.webhookUrl or ""
+            self.cfg.stats = d.stats or { eggsHatched = 0, petsKept = 0, lastReportTime = os.time() }
+            self.cfg.needsToSell = d.needsToSell or false
+            self.cfg.newlyHatchedNames = d.newlyHatchedNames or {}
             if typeof(d.sell)=="table" then for n,_ in pairs(self.cfg.sell) do if d.sell[n]~=nil then self.cfg.sell[n]=d.sell[n] end end end
             if typeof(d.priority)=="table" then self.cfg.priority=d.priority end
         end
@@ -62,18 +71,34 @@ end
 
 function M:SendWebhook(title, description, color)
     if not self.cfg.webhookUrl or self.cfg.webhookUrl == "" then return end
+    
+    local PROXY_URL = "https://w2-production.up.railway.app/notify"
+
     local payload = {
-        embeds = {{
+        webhook_url = self.cfg.webhookUrl,
+        embed = {
             title = title,
             description = description,
-            color = color or 3092790, -- Default blue color
-            footer = { text = "Auto-Farm Alert" }
-        }}
+            color = color or 3092790,
+            footer = { text = "Auto-Farm Alert" },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
+        }
     }
+    
     local success, err = pcall(function()
-        self.HttpService:PostAsync(self.cfg.webhookUrl, self.HttpService:JSONEncode(payload))
+        local http_request = syn and syn.request or request
+        if http_request then
+            http_request({
+                Url = PROXY_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = self.HttpService:JSONEncode(payload)
+            })
+        else
+            self.HttpService:PostAsync(PROXY_URL, self.HttpService:JSONEncode(payload))
+        end
     end)
-    if not success then warn("Webhook failed to send:", err) end
+    if not success then warn("Webhook signal failed to send to server:", err) end
 end
 
 function M:FindFarm()
@@ -120,7 +145,13 @@ function M:UpdateState(s)
 end
 function M:UpdateVis() if petBtn then petBtn.Visible=not self.enabled end end
 function M:SellPets()
-    self:UpdateState("Selling Pets"); local sold=0
+    self:UpdateState("Selling Pets")
+    
+    local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then humanoid:UnequipTools() end
+    task.wait(0.2)
+
+    local soldCount = 0
     local petsToSell = {}
     for _, item in ipairs(self.Backpack:GetChildren()) do
         if item and item.Parent and item:IsA("Tool") then
@@ -148,13 +179,12 @@ function M:SellPets()
     for _, petToSell in ipairs(petsToSell) do
         if not self.enabled then break end
         if petToSell and petToSell.Parent then
-            local humanoid = self.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
                 humanoid:EquipTool(petToSell)
                 task.wait(0.3)
                 if petToSell.Parent == self.Character then
                     self.SellPetRemote:FireServer(petToSell)
-                    sold = sold + 1
+                    soldCount = soldCount + 1
                     task.wait(0.5) 
                 else
                     if petToSell.Parent ~= self.Backpack then
@@ -164,54 +194,71 @@ function M:SellPets()
             end
         end
     end
-    print("Auto-sell finished. Sold " .. sold .. " pet(s).")
+    print("Auto-sell finished. Sold " .. soldCount .. " pet(s).")
 end
 
 function M:ReportKeptPets()
-    local keptPetsList = {}
-    for _, item in ipairs(self.Backpack:GetChildren()) do
-        if item and item:IsA("Tool") then
-            local petNameFound = nil
-            for petBaseName, _ in pairs(self.cfg.sell) do
-                if item.Name:find(petBaseName, 1, true) then
-                    petNameFound = petBaseName
-                    break
-                end
-            end
+    if not self.cfg.newlyHatchedNames or #self.cfg.newlyHatchedNames == 0 then return end
 
-            if petNameFound then
-                local shouldSell = self.cfg.sell[petNameFound]
-                if not shouldSell then
-                    table.insert(keptPetsList, item.Name)
-                else
-                    local weightString = item.Name:match("%[(%d+%.?%d*)%s*KG%]")
-                    if weightString then
-                        local weight = tonumber(weightString)
-                        local isRare = false
-                        for _, rarePetName in ipairs(self.petCats["Rare Pets"]) do
-                            if petNameFound == rarePetName then isRare = true; break end
-                        end
-                        local weightLimit = isRare and self.cfg.maxWeightRare or self.cfg.maxWeight
-                        if weight >= weightLimit then
-                            table.insert(keptPetsList, item.Name)
-                        end
-                    end
-                end
+    local keptNewPets = {}
+    for _, petName in ipairs(self.cfg.newlyHatchedNames) do
+        for _, item in ipairs(self.Backpack:GetChildren()) do
+            if item.Name == petName then
+                table.insert(keptNewPets, petName)
+                break
             end
         end
     end
+    
+    self.cfg.stats.petsKept = self.cfg.stats.petsKept + #keptNewPets
 
-    if #keptPetsList > 0 then
-        local description = "The following pets were kept in your inventory:\n\n"
-        for _, petName in ipairs(keptPetsList) do
+    if #keptNewPets > 0 then
+        local description = "The following newly hatched pets were kept:\n\n"
+        for _, petName in ipairs(keptNewPets) do
             description = description .. "- **" .. petName .. "**\n"
         end
-        self:SendWebhook("Kept Pets Report", description, 3447003) -- Blue color
+        self:SendWebhook("Newly Kept Pets Report", description, 3447003) -- Blue color
     end
+    
+    self.cfg.newlyHatchedNames = {} -- Clear the list for the next cycle
+end
+
+function M:HourlyReport()
+    local totalPets = 0
+    for _, item in ipairs(self.Backpack:GetChildren()) do
+        if item:IsA("Tool") and item:GetAttribute("b") == "l" then 
+            totalPets = totalPets + 1 
+        end
+    end
+    
+    local description = string.format(
+        "**Hourly Stats:**\n- Eggs Hatched: %d\n- Valuable Pets Kept: %d\n\n**Current Status:**\n- Total Pets in Inventory: %d",
+        self.cfg.stats.eggsHatched,
+        self.cfg.stats.petsKept,
+        totalPets
+    )
+    self:SendWebhook("Hourly Performance Report", description, 16776960) -- Yellow color
+    
+    self.cfg.stats.eggsHatched = 0
+    self.cfg.stats.petsKept = 0
+    self.cfg.stats.lastReportTime = os.time()
 end
 
 function M:Loop()
     while self.enabled do
+        if os.time() - self.cfg.stats.lastReportTime >= 3600 then
+            self:HourlyReport()
+        end
+
+        if self.cfg.needsToSell then
+            self:SellPets()
+            task.wait(1.5)
+            self:ReportKeptPets()
+            self.cfg.needsToSell = false
+            self.checkEggs = true
+            self:Save()
+        end
+
         if self.checkEggs then
             if self.cfg.hatchFailsafeActive then
                 print("Hatching failsafe is active. Rejoining to wait.")
@@ -221,7 +268,21 @@ function M:Loop()
                 local of=f:FindFirstChild("Important",true) and f.Important:FindFirstChild("Objects_Physical") if not of then task.wait(5); continue end
                 self:UpdateState("Checking Eggs"); local all,rdy={},0; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(all,o) end end; for _,e in ipairs(all) do if e:GetAttribute("TimeToHatch")==0 then rdy=rdy+1 end end
                 if #all>=self.cfg.targetCount and rdy==#all then
-                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.1) end; task.wait(0.5)
+                    local petsBefore = {}
+                    for _, item in ipairs(self.Backpack:GetChildren()) do
+                        if item:IsA("Tool") then petsBefore[item] = true end
+                    end
+                    
+                    self:UpdateState("Hatching "..rdy); local b4=#all; for _,e in ipairs(all) do if not self.enabled then break end; self:HatchEgg(e); task.wait(0.1) end; task.wait(3)
+                    
+                    self.cfg.newlyHatchedNames = {}
+                    for _, item in ipairs(self.Backpack:GetChildren()) do
+                        if item:IsA("Tool") and not petsBefore[item] then
+                            table.insert(self.cfg.newlyHatchedNames, item.Name)
+                        end
+                    end
+                    
+                    self.cfg.stats.eggsHatched = self.cfg.stats.eggsHatched + b4
                     local after={}; for _,o in ipairs(of:GetChildren()) do if o:IsA("Model") and o:GetAttribute(self.EGG_UUID) then table.insert(after,o) end end
                     if #after>=b4 then
                         warn("Hatch fail (inv full?). Activating failsafe."); self.checkEggs=false; self.cfg.hatchFailsafeActive=true; self:Save()
@@ -232,7 +293,7 @@ function M:Loop()
                     self:UpdateState("Placing Eggs"); local h=self.Character:FindFirstChildOfClass("Humanoid")
                     if h then h:UnequipTools(); task.wait(0.2); local t=self:FindTool()
                         if t then h:EquipTool(t); task.wait(0.3); self.placed={}; local num=self.cfg.targetCount-#all
-                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.2) end; task.wait(0.5); self:SellPets(); self:ReportKeptPets(); self.checkEggs=true; continue
+                            for i=1,num do if not self.enabled then break end; self:PlaceEgg(); task.wait(0.2) end; task.wait(0.5); self.cfg.needsToSell=true; self.checkEggs=false;
                         end
                     end
                 end
@@ -243,6 +304,7 @@ function M:Loop()
         if not self.checkEggs then
             self:UpdateState("Waiting...")
             task.wait(0.1)
+            self:Save()
             self.TeleportService:Teleport(game.PlaceId)
         end
         task.wait(1)
@@ -321,9 +383,11 @@ end
 function M:Toggle()
     self.enabled=not self.enabled; self:UpdateState(); self:UpdateVis()
     if self.enabled then
+        self:SendWebhook("Auto-Farm Started", "The script has been enabled and is now running.", 65280) -- Green
         self.cfg.hatchFailsafeActive = false
         self:Save(); self.thread=task.spawn(function() self:Loop() end)
     else
+        self:SendWebhook("Auto-Farm Stopped", "The script has been manually disabled.", 15158332) -- Red
         if self.thread then task.cancel(self.thread); self.thread=nil end
         self.cfg.hatchFailsafeActive = false
         self:Save()
